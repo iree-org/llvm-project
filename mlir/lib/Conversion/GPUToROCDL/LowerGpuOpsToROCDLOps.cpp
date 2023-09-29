@@ -260,10 +260,10 @@ struct GPUShuffleOpLowering : public ConvertOpToLLVMPattern<gpu::ShuffleOp> {
       return failure();
     int32_t offsetInt32 = offsetIntAttr.getInt();
     int32_t widthInt32 = widthIntAttr.getInt();
-    // Width needs to be same size as warp.
-    const int32_t kWarpSize = 32;
-    if (widthInt32 != kWarpSize)
-      return failure();
+    // // Width needs to be same size as warp.
+    // const int32_t kWarpSize = 32;
+    // if (widthInt32 != kWarpSize)
+    //   return failure();
     // Do zext to unsigned to represent mask.
     return static_cast<unsigned>(offsetInt32);
   }
