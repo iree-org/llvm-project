@@ -271,7 +271,7 @@ void memref::populateMemRefNarrowTypeEmulationConversions(
           return std::nullopt;
 
         StridedLayoutAttr layoutAttr;
-        if (offset != 0) {
+        if (offset != ShapedType::kDynamic && offset != 0) {
           // Check if the number of bytes are a multiple of the loadStoreWidth
           // and if so, divide it by the loadStoreWidth to get the offset.
           if ((offset * width) % loadStoreWidth != 0)
@@ -281,6 +281,7 @@ void memref::populateMemRefNarrowTypeEmulationConversions(
           layoutAttr = StridedLayoutAttr::get(ty.getContext(), offset,
                                               ArrayRef<int64_t>{1});
         }
+        // If the offset is dynamic, we can just leave it as is.
 
         return MemRefType::get(getLinearizedShape(ty, width, loadStoreWidth),
                                newElemTy, layoutAttr, ty.getMemorySpace());
