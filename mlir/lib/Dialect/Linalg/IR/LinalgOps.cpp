@@ -804,6 +804,42 @@ public:
   }
 };
 
+/// Fold
+/// ```mlir
+/// %empty = tensor.empty()
+/// %fill = linalg.fill ins(%cst : f32) outs(%empty : ...)
+/// %unpack = iree.unpack %src ... into %fill : ...
+/// ```
+///
+/// ```
+/// %unpack = iree.unpack %src ... into %empty
+/// ```
+static LogicalResult foldFillUnpackIntoUnpackOp(RewriterBase &rewriter,
+                                                tensor::UnPackOp unpackOp) {
+  auto fillOp = unpackOp.getDest().getDefiningOp<FillOp>();
+  if (!fillOp || !fillOp->hasOneUse())
+    return failure();
+
+  OpBuilder::InsertionGuard guard(rewriter);
+  rewriter.setInsertionPoint(fillOp);
+
+  rewriter.updateRootInPlace(unpackOp, [&]() {
+    unpackOp.getDestMutable().assign(fillOp.getDpsInitOperand(0)->get());
+  });
+  return success();
+}
+
+/// Pattern to fold fill with unpack operations.
+struct FoldFillWithUnpack : public OpRewritePattern<tensor::UnPackOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(tensor::UnPackOp unpackOp,
+                                PatternRewriter &rewriter) const override {
+    return foldFillUnpackIntoUnpackOp(rewriter, unpackOp);
+  }
+};
+
 } // namespace
 
 void FillOp::getCanonicalizationPatterns(RewritePatternSet &results,
@@ -811,7 +847,7 @@ void FillOp::getCanonicalizationPatterns(RewritePatternSet &results,
   results.add<FoldFillWithTensorExtract, FoldFillWithPack, FoldFillWithPad,
               FoldFillWithTensorReshape<tensor::CollapseShapeOp>,
               FoldFillWithTensorReshape<tensor::ExpandShapeOp>,
-              FoldInsertPadIntoFill>(context);
+              FoldFillWithUnpack, FoldInsertPadIntoFill>(context);
 }
 
 //===----------------------------------------------------------------------===//
