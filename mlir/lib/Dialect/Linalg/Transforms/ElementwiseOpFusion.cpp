@@ -625,14 +625,14 @@ LogicalResult ExpansionInfo::compute(LinalgOp linalgOp,
   return success();
 }
 
-/// Epanding the body of a linalg operation requires adaptations of the accessed
-/// loop indices. Specifically, access of indices in the original operation need
-/// to be replaced with linearizations of indices in the expanded op. That
-/// requires the shape of the expanded dimensions to be static (at least all but
-/// the most significant). For now check that these are all statically sized.
-/// Note that this could be extended to handle dynamic case, but the
-/// implementation below uses `affine.apply` which seems to have issues when the
-/// shapes are not static.
+/// Expanding the body of a linalg operation requires adaptations of the
+/// accessed loop indices. Specifically, access of indices in the original
+/// operation need to be replaced with linearizations of indices in the expanded
+/// op. That requires the shape of the expanded dimensions to be static (at
+/// least all but the most significant). For now check that these are all
+/// statically sized. Note that this could be extended to handle dynamic case,
+/// but the implementation below uses `affine.apply` which seems to have issues
+/// when the shapes are not static.
 static LogicalResult isLinalgOpExpandable(LinalgOp linalgOp,
                                           const ExpansionInfo &expansionInfo,
                                           PatternRewriter &rewriter) {
@@ -759,6 +759,8 @@ fuseWithReshapeByExpansion(LinalgOp linalgOp, Operation *reshapeOp,
                            PatternRewriter &rewriter) {
   assert(isFusableWithReshapeByDimExpansion(linalgOp, fusableOpOperand) &&
          "preconditions for fuse operation failed");
+
+  Location loc = linalgOp.getLoc();
   // Check if reshape is expanding or collapsing.
   auto expandingReshapeOp = dyn_cast<tensor::ExpandShapeOp>(*reshapeOp);
   auto collapsingReshapeOp = dyn_cast<tensor::CollapseShapeOp>(*reshapeOp);
@@ -815,16 +817,28 @@ fuseWithReshapeByExpansion(LinalgOp linalgOp, Operation *reshapeOp,
                 reassociation,
                 /*isExpandingReshape=*/true)))
           return std::nullopt;
+
+        SmallVector<OpFoldResult> inputShape =
+            tensor::getMixedSizes(rewriter, loc, opOperand->get());
+        std::pair<SmallVector<int64_t>, SmallVector<Value>> outputShape;
+        if (failed(tensor::ExpandShapeOp::inferOutputShape(
+                rewriter, loc, expandedOperandType, reassociation, inputShape,
+                outputShape))) {
+          (void)rewriter.notifyMatchFailure(
+              linalgOp,
+              "unable to infer output shape argument for tensor.expand_shape");
+          return std::nullopt;
+        }
         expandedOpOperands.push_back(rewriter.create<tensor::ExpandShapeOp>(
-            linalgOp.getLoc(), expandedOperandType, opOperand->get(),
-            reassociation));
+            loc, expandedOperandType, opOperand->get(),
+            getReassociationIndicesAttribute(rewriter, reassociation),
+            outputShape.second, outputShape.first));
         continue;
       }
     }
     expandedOpOperands.push_back(opOperand->get());
   }
 
-  Location loc = linalgOp.getLoc();
   SmallVector<Value> outputs;
   for (OpOperand &opOperand : linalgOp.getDpsInitsMutable()) {
     AffineMap indexingMap = linalgOp.getMatchingIndexingMap(&opOperand);
@@ -842,9 +856,22 @@ fuseWithReshapeByExpansion(LinalgOp linalgOp, Operation *reshapeOp,
               reassociation,
               /*isExpandingReshape=*/true)))
         return std::nullopt;
+
+      SmallVector<OpFoldResult> inputShape =
+          tensor::getMixedSizes(rewriter, loc, opOperand.get());
+      std::pair<SmallVector<int64_t>, SmallVector<Value>> outputShape;
+      if (failed(tensor::ExpandShapeOp::inferOutputShape(
+              rewriter, loc, expandedOutputType, reassociation, inputShape,
+              outputShape))) {
+        (void)rewriter.notifyMatchFailure(
+            linalgOp,
+            "unable to infer output shape argument for tensor.expand_shape");
+        return std::nullopt;
+      }
       outputs.push_back(rewriter.create<tensor::ExpandShapeOp>(
-          linalgOp.getLoc(), expandedOutputType, opOperand.get(),
-          reassociation));
+          loc, expandedOutputType, opOperand.get(),
+          getReassociationIndicesAttribute(rewriter, reassociation),
+          outputShape.second, outputShape.first));
     } else {
       outputs.push_back(opOperand.get());
     }
@@ -1615,15 +1642,17 @@ FailureOr<CollapseResult> mlir::linalg::collapseOpIterationDims(
           op.getIndexingMapMatchingResult(originalResult.value());
       SmallVector<ReassociationIndices> reassociation =
           getOperandReassociation(indexingMap, collapsingInfo);
+      Value result;
       if (isa<MemRefType>(collapsedOpResult.getType())) {
-        Value result = rewriter.create<memref::ExpandShapeOp>(
-            loc, originalResultType, collapsedOpResult, reassociation);
-        results.push_back(result);
+        MemRefType expandShapeResultType = MemRefType::get(
+            originalResultType.getShape(), originalResultType.getElementType());
+        result = rewriter.create<memref::ExpandShapeOp>(
+            loc, expandShapeResultType, collapsedOpResult, reassociation);
       } else {
-        Value result = rewriter.create<tensor::ExpandShapeOp>(
+        result = rewriter.create<tensor::ExpandShapeOp>(
             loc, originalResultType, collapsedOpResult, reassociation);
-        results.push_back(result);
       }
+      results.push_back(result);
     } else {
       results.push_back(collapsedOpResult);
     }

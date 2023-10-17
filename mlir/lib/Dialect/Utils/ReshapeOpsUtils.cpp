@@ -8,6 +8,7 @@
 
 #include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Builders.h"
 
@@ -15,6 +16,69 @@
 #include <optional>
 
 using namespace mlir;
+
+LogicalResult mlir::inferExpandShapeOutputShape(
+    OpBuilder &b, Location loc, RankedTensorType expandedType,
+    ArrayRef<ReassociationIndices> reassociation,
+    ArrayRef<OpFoldResult> inputShape,
+    std::pair<SmallVector<int64_t>, SmallVector<Value>> &outputShape) {
+  SmallVector<Value> outputShapeValues;
+  SmallVector<int64_t> outputShapeInts;
+  // For zero-rank inputs, all dims in result shape are unit extent.
+  if (inputShape.empty()) {
+    outputShapeInts.resize(expandedType.getRank(), 1);
+    outputShape = std::make_pair(outputShapeInts, outputShapeValues);
+    return success();
+  }
+
+  // Check for all static shapes.
+  if (expandedType.hasStaticShape()) {
+    ArrayRef<int64_t> shapeInts = expandedType.getShape();
+    outputShapeInts.assign(shapeInts.begin(), shapeInts.end());
+    outputShape = std::make_pair(outputShapeInts, outputShapeValues);
+    return success();
+  }
+
+  outputShapeInts.resize(expandedType.getRank(), ShapedType::kDynamic);
+  for (const auto &it : llvm::enumerate(reassociation)) {
+    ReassociationIndices indexGroup = it.value();
+
+    int64_t indexGroupStaticSizesProductInt = 1;
+    bool foundDynamic = false;
+    for (int64_t index : indexGroup) {
+      int64_t outputDimSize = expandedType.getDimSize(index);
+      // Cannot infer expanded shape with multiple dynamic dims in the
+      // same reassociation group!
+      if (ShapedType::isDynamic(outputDimSize)) {
+        if (foundDynamic)
+          return failure();
+        foundDynamic = true;
+      } else {
+        outputShapeInts[index] = outputDimSize;
+        indexGroupStaticSizesProductInt *= outputDimSize;
+      }
+    }
+    if (!foundDynamic)
+      continue;
+
+    int64_t inputIndex = it.index();
+    // Call get<Value>() under the assumption that we're not casting
+    // dynamism.
+    Value indexGroupSize = inputShape[inputIndex].get<Value>();
+    Value indexGroupStaticSizesProduct =
+        b.create<arith::ConstantIndexOp>(loc, indexGroupStaticSizesProductInt);
+    Value dynamicDimSize = b.createOrFold<arith::DivUIOp>(
+        loc, indexGroupSize, indexGroupStaticSizesProduct);
+    outputShapeValues.push_back(dynamicDimSize);
+  }
+
+  if (llvm::count(outputShapeInts, ShapedType::kDynamic) !=
+      outputShapeValues.size())
+    return failure();
+
+  outputShape = std::make_pair(outputShapeInts, outputShapeValues);
+  return success();
+}
 
 std::optional<SmallVector<ReassociationIndices>>
 mlir::getReassociationIndicesForReshape(ShapedType sourceType,
@@ -168,7 +232,7 @@ ArrayAttr mlir::getReassociationIndicesAttribute(
 }
 
 SmallVector<ReassociationIndices, 2> mlir::convertReassociationMapsToIndices(
-    OpBuilder &b, ArrayRef<ReassociationExprs> reassociationExprs) {
+    ArrayRef<ReassociationExprs> reassociationExprs) {
   SmallVector<ReassociationIndices, 2> reassociationIndices;
   for (const auto &exprs : reassociationExprs) {
     ReassociationIndices indices;
@@ -230,24 +294,17 @@ LogicalResult mlir::reshapeLikeShapesAreCompatible(
     ArrayRef<ReassociationIndices> reassociationMaps, bool isExpandingReshape) {
   unsigned expandedDimStart = 0;
   for (const auto &map : llvm::enumerate(reassociationMaps)) {
-    std::optional<int64_t> dynamicShape;
+    bool foundDynamicShape = false;
     int64_t linearizedStaticShape = 1;
+
     for (const auto &dim : llvm::enumerate(
              expandedShape.slice(expandedDimStart, map.value().size()))) {
-      if (ShapedType::isDynamic(dim.value())) {
-        if (isExpandingReshape && dynamicShape) {
-          return emitError("invalid to have a single dimension (" +
-                           Twine(map.index()) +
-                           ") expanded into multiple dynamic dims (" +
-                           Twine(expandedDimStart + dynamicShape.value()) +
-                           "," + Twine(expandedDimStart + dim.index()) + ")");
-        }
-        dynamicShape = dim.index();
-      } else {
+      if (ShapedType::isDynamic(dim.value()))
+        foundDynamicShape = true;
+      else
         linearizedStaticShape *= dim.value();
-      }
     }
-    if (dynamicShape) {
+    if (foundDynamicShape) {
       if (!ShapedType::isDynamic(collapsedShape[map.index()])) {
         return emitError(
             "expected dimension " + Twine(map.index()) +
