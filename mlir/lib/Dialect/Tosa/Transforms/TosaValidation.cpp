@@ -14,9 +14,6 @@
 #include "mlir/Dialect/Tosa/Transforms/Passes.h"
 #include "mlir/Dialect/Tosa/Transforms/PassesEnums.cpp.inc"
 
-#include <string>
-#include <unordered_map>
-
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/IR/Builders.h"
@@ -99,13 +96,12 @@ static constexpr tosa_level_t TOSA_LEVEL_NONE = {0, 0, 0, 0};
 struct TosaValidation : public tosa::impl::TosaValidationBase<TosaValidation> {
 public:
   explicit TosaValidation() { populateConstantOperandChecks(); }
-  explicit TosaValidation(const TosaValidationOptions &options)
-      : TosaValidation() {
+  explicit TosaValidation(const ValidationOptions &options) : TosaValidation() {
     this->profile = options.profile;
-    this->StrictOperationSpecAlignment = options.StrictOperationSpecAlignment;
+    this->StrictOperationSpecAlignment = options.strictOperationSpecAlignment;
     this->level = options.level;
   }
-  void runOnOperation() final;
+  void runOnOperation() override;
 
   LogicalResult applyConstantOperandCheck(Operation *op) {
     for (auto &checker : const_checkers) {
@@ -116,9 +112,6 @@ public:
   }
 
   LogicalResult applyLevelCheck(Operation *op);
-
-  // check variable read/write data types against variable declarations
-  LogicalResult applyVariableCheck(Operation *op);
 
 private:
   void populateConstantOperandChecks() {
@@ -405,12 +398,8 @@ private:
     }
   }
 
-  bool CheckVariable(Operation *op);
-  bool CheckVariableReadOrWrite(Operation *op);
-
   SmallVector<std::function<LogicalResult(Operation *)>> const_checkers;
   tosa_level_t tosa_level;
-  DenseMap<const mlir::StringAttr *, mlir::Type> variables_map;
 };
 
 LogicalResult TosaValidation::applyLevelCheck(Operation *op) {
@@ -438,69 +427,6 @@ LogicalResult TosaValidation::applyLevelCheck(Operation *op) {
   return success();
 }
 
-inline bool CompatibleTypes(const mlir::Type &type,
-                            const mlir::Type &declared_type) {
-  // for now, simply use type equality comparison
-  return type == declared_type;
-}
-
-bool TosaValidation::CheckVariable(Operation *op) {
-  if (isa<mlir::tosa::VariableOp>(op)) {
-    auto name_attr = cast<mlir::StringAttr>(op->getAttr("name"));
-
-    if (variables_map.count(&name_attr)) {
-      op->emitOpError() << "name has already been declared";
-      return false;
-    }
-
-    auto type_attr = cast<mlir::TypeAttr>(op->getAttr("type"));
-    mlir::Type type = type_attr.getValue();
-
-    variables_map[&name_attr] = type;
-  }
-
-  return true;
-}
-
-bool TosaValidation::CheckVariableReadOrWrite(Operation *op) {
-  if (isa<mlir::tosa::VariableReadOp>(op) ||
-      isa<mlir::tosa::VariableWriteOp>(op)) {
-    auto name_attr = cast<mlir::StringAttr>(op->getAttr("name"));
-
-    if (!variables_map.count(&name_attr)) {
-      op->emitOpError() << "name has not been declared";
-      return false;
-    }
-
-    auto var_type = variables_map[&name_attr];
-
-    for (auto v : op->getOperands()) {
-      auto type = v.getType();
-      if (!CompatibleTypes(type, var_type)) {
-        op->emitOpError() << "operand type does not equal variable type";
-        return false;
-      }
-    }
-
-    for (auto v : op->getResults()) {
-      auto type = v.getType();
-      if (!CompatibleTypes(type, var_type)) {
-        op->emitOpError() << "result type does not equal variable type";
-        return false;
-      }
-    }
-  }
-
-  return true;
-}
-
-LogicalResult TosaValidation::applyVariableCheck(Operation *op) {
-  if (!CheckVariable(op) || !CheckVariableReadOrWrite(op)) {
-    return failure();
-  }
-  return success();
-}
-
 void TosaValidation::runOnOperation() {
   configLevelAndProfile();
   getOperation().walk([&](Operation *op) {
@@ -514,18 +440,18 @@ void TosaValidation::runOnOperation() {
       }
     }
 
-    // Some uses of TOSA rely on the constant operands of particular
-    // operations.
+    // Some uses of TOSA rely on the constant operands of particular operations.
     if (StrictOperationSpecAlignment && failed(applyConstantOperandCheck(op)))
       signalPassFailure();
 
     // do level checks
     if (failed(applyLevelCheck(op)))
       signalPassFailure();
-
-    // do variable type checks
-    if (failed(applyVariableCheck(op)))
-      signalPassFailure();
   });
 }
 } // namespace
+
+std::unique_ptr<Pass>
+mlir::tosa::createTosaValidationPass(ValidationOptions const &options) {
+  return std::make_unique<TosaValidation>(options);
+}
