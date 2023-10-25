@@ -583,17 +583,53 @@ mlir::scf::tileAndFuseProducerOfSlice(RewriterBase &rewriter,
                                         loops);
   if (!fusableProducer)
     return std::nullopt;
+  unsigned resultNumber = fusableProducer.getResultNumber();
 
-  // 2. Generate the tiled implementation of the producer of the source
   OpBuilder::InsertionGuard g(rewriter);
   rewriter.setInsertionPoint(candidateSliceOp);
+
+  // 2. Clone the fused producer
+  // 2a. Compute the destination operands to use for the cloned operation.
+  SmallVector<Value> origDestinationTensors, clonedOpDestinationTensors;
+  Operation *fusableProducerOp = fusableProducer.getOwner();
+  if (isa<DestinationStyleOpInterface>(fusableProducerOp)) {
+    if (failed(tensor::getOrCreateDestinations(
+            rewriter, fusableProducerOp->getLoc(), fusableProducerOp,
+            origDestinationTensors))) {
+      return std::nullopt;
+    }
+  }
+  clonedOpDestinationTensors = origDestinationTensors;
+  if (destinationInitArg &&
+      isa<DestinationStyleOpInterface>(fusableProducerOp)) {
+    // 2b. If the producer is also destination style, then to maintain the
+    // destination passing style, update the destination of the producer to be
+    // the source of the slice.
+    clonedOpDestinationTensors[resultNumber] = candidateSliceOp.getSource();
+  }
+  // 2c. Clone the fused producer.
+  Operation *clonedProducerOp = cloneOpAndUpdateDestinationArgs(
+      rewriter, fusableProducerOp, clonedOpDestinationTensors);
+  // 2d. Update the source of the candidateSlice to be the cloned producer.
+  //     Easier to just clone the slice with different source since replacements
+  //     and DCE of cloned ops becomes easier
+  SmallVector<Value> candidateSliceOpOperands =
+      llvm::to_vector(candidateSliceOp->getOperands());
+  candidateSliceOpOperands[0] = clonedProducerOp->getResult(resultNumber);
+  tensor::ExtractSliceOp clonedCandidateSliceOp =
+      mlir::clone(rewriter, candidateSliceOp,
+                  candidateSliceOp->getResultTypes(), candidateSliceOpOperands);
+
+  // 3. Generate the tiled implementation of the producer of the source
   FailureOr<TilingResult> tileAndFuseResult =
-      tensor::replaceExtractSliceWithTiledProducer(rewriter, candidateSliceOp,
-                                                   fusableProducer);
+      tensor::replaceExtractSliceWithTiledProducer(
+          rewriter, clonedCandidateSliceOp,
+          clonedProducerOp->getResult(resultNumber));
   if (failed(tileAndFuseResult))
     return std::nullopt;
-  rewriter.replaceAllUsesWith(candidateSliceOp,
-                              tileAndFuseResult->tiledValues[0]);
+  rewriter.replaceAllUsesWith(candidateSliceOp, tileAndFuseResult->tiledValues[0]);
+  rewriter.eraseOp(clonedCandidateSliceOp);
+  rewriter.eraseOp(clonedProducerOp);
 
   // 3. If the slice is for a destination operand, for example,
   //
@@ -642,29 +678,10 @@ mlir::scf::tileAndFuseProducerOfSlice(RewriterBase &rewriter,
   //   }
   // }
   // ```
-  // TODO: This can be modeled better if the `DestinationStyleOpInterface`.
-  // Update to use that when it does become available.
-  scf::ForOp outerMostLoop = loops.front();
   if (destinationInitArg &&
-      (*destinationInitArg)->getOwner() == outerMostLoop) {
-    unsigned iterArgNumber =
-        outerMostLoop.getResultForOpOperand(**destinationInitArg)
-            .getResultNumber();
-    int64_t resultNumber = fusableProducer.getResultNumber();
-    if (auto dstOp =
-            dyn_cast<DestinationStyleOpInterface>(fusableProducer.getOwner())) {
-      (*destinationInitArg)
-          ->set(dstOp.getTiedOpOperand(fusableProducer)->get());
-    }
-    for (auto tileAndFusedOp : tileAndFuseResult->tiledOps) {
-      auto dstOp = dyn_cast<DestinationStyleOpInterface>(tileAndFusedOp);
-      if (!dstOp)
-        continue;
-      scf::ForOp innerMostLoop = loops.back();
-      updateDestinationOperandsForTiledOp(
-          rewriter, dstOp.getDpsInitOperand(resultNumber)->get(),
-          innerMostLoop.getRegionIterArgs()[iterArgNumber]);
-    }
+      isa<DestinationStyleOpInterface>(fusableProducerOp) && !loops.empty()) {
+    loops.front().getInitArgsMutable().slice(0, 1).assign(
+        origDestinationTensors[resultNumber]);
   }
   return scf::SCFFuseProducerOfSliceResult{fusableProducer,
                                            tileAndFuseResult->tiledValues[0],
