@@ -698,8 +698,18 @@ mlir::scf::tileAndFuseProducerOfSlice(RewriterBase &rewriter,
   // ```
   if (destinationInitArg &&
       isa<DestinationStyleOpInterface>(fusableProducerOp) && !loops.empty()) {
-    loops.front().getInitArgsMutable().slice(0, 1).assign(
-        origDestinationTensors[resultNumber]);
+    unsigned iterArgIndex = 0;
+    for (auto &x : loops.front().getInitArgsMutable()) {
+      if (!dyn_cast<BlockArgument>(x.get()) &&
+          x.get().getDefiningOp() == fusableProducerOp)
+        break;
+      ;
+      ++iterArgIndex;
+    }
+    loops.front()
+        .getInitArgsMutable()
+        .slice(iterArgIndex, 1)
+        .assign(origDestinationTensors[resultNumber]);
   }
   return scf::SCFFuseProducerOfSliceResult{fusableProducer,
                                            tileAndFuseResult->tiledValues[0],
