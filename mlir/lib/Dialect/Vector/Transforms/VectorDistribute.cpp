@@ -555,7 +555,7 @@ struct WarpOpTransferWrite : public OpRewritePattern<WarpExecuteOnLane0Op> {
 
     // Only sink out vector of 1 element for now to not serialize large vector
     // store. This can later be controlled by user.
-    if (vecType.getNumElements() != 1)
+    if (vecType.getNumElements() >= warpOp.getWarpSize())
       return failure();
 
     // Do not process warp ops that contain only TransferWriteOps.
