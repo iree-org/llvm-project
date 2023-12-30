@@ -21,6 +21,87 @@ static bool areAllConstantIntValue(ArrayRef<OpFoldResult> ofrs, int64_t value) {
       ofrs, [&](OpFoldResult ofr) { return isConstantIntValue(ofr, value); });
 }
 
+/// Packing one-dimensional tensor can be expressed as an expand shape op.
+struct SimplifyPackToExpandShape : public OpRewritePattern<PackOp> {
+  using OpRewritePattern<PackOp>::OpRewritePattern;
+
+  Value insertExpand(RewriterBase &rewriter, Location loc, Value operand,
+                     Type newOperandType, ArrayAttr reassociation) const {
+    if (operand.getType() == newOperandType)
+      return operand;
+    return rewriter.create<tensor::ExpandShapeOp>(loc, newOperandType, operand,
+                                                  reassociation);
+  }
+
+  LogicalResult matchAndRewrite(PackOp packOp,
+                                PatternRewriter &rewriter) const override {
+    if (packOp.getPaddingValue())
+      return rewriter.notifyMatchFailure(packOp, "expects no padding value");
+
+    if (!packOp.getOuterDimsPerm().empty())
+      return rewriter.notifyMatchFailure(packOp, "expects no outer_dims_perm");
+
+    RankedTensorType sourceType = packOp.getSourceType();
+    RankedTensorType destType = packOp.getDestType();
+    ArrayRef<int64_t> dimsPos = packOp.getInnerDimsPos();
+    if (dimsPos.size() != 1 || (dimsPos[0] + 1 != sourceType.getRank())) {
+      return rewriter.notifyMatchFailure(
+          packOp, "expects packing at the innermost dimension");
+    }
+
+    auto reassociation =
+        getReassociationIndicesForReshape(sourceType, destType);
+    if (!reassociation)
+      return failure();
+    Value expanded = insertExpand(
+        rewriter, packOp.getLoc(), packOp.getSource(), destType,
+        getReassociationIndicesAttribute(rewriter, *reassociation));
+    rewriter.replaceOp(packOp, expanded);
+    return success();
+  }
+};
+
+struct SimplifyUnPackToCollapseShape : public OpRewritePattern<UnPackOp> {
+  using OpRewritePattern<UnPackOp>::OpRewritePattern;
+
+  Value insertCollapse(RewriterBase &rewriter, Location loc, Value operand,
+                       Type newOperandType, ArrayAttr reassociation) const {
+    if (operand.getType() == newOperandType)
+      return operand;
+    return rewriter.create<tensor::CollapseShapeOp>(loc, newOperandType,
+                                                    operand, reassociation);
+  }
+
+  LogicalResult matchAndRewrite(UnPackOp unpackOp,
+                                PatternRewriter &rewriter) const override {
+    if (!unpackOp.getOuterDimsPerm().empty()) {
+      return rewriter.notifyMatchFailure(unpackOp,
+                                         "expects no outer_dims_perm");
+    }
+
+    RankedTensorType sourceType = unpackOp.getSourceType();
+    RankedTensorType destType = unpackOp.getDestType();
+    if (!sourceType.hasStaticShape() || !destType.hasStaticShape())
+      return rewriter.notifyMatchFailure(unpackOp, "expects static shapes");
+
+    ArrayRef<int64_t> dimsPos = unpackOp.getInnerDimsPos();
+    if (dimsPos.size() != 1 || (dimsPos[0] + 1 != destType.getRank())) {
+      return rewriter.notifyMatchFailure(
+          unpackOp, "expects unpacking at the innermost dimension");
+    }
+
+    auto reassociation =
+        getReassociationIndicesForReshape(sourceType, destType);
+    if (!reassociation)
+      return failure();
+    Value collapsed = insertCollapse(
+        rewriter, unpackOp.getLoc(), unpackOp.getSource(), destType,
+        getReassociationIndicesAttribute(rewriter, *reassociation));
+    rewriter.replaceOp(unpackOp, collapsed);
+    return success();
+  }
+};
+
 /// Fold a `pad` -> `pack` into `pack` if they have the same padding values and
 /// the pad op has zero low paddings, or if `pack` has no padding values.
 struct FoldPadWithPackOp : public OpRewritePattern<PackOp> {
@@ -147,6 +228,11 @@ struct FoldProducerPackWithConsumerLinalgTransposeOp
 void populateFoldIntoPackAndUnpackPatterns(RewritePatternSet &patterns) {
   patterns.insert<FoldUnpackWithExtractSliceOp, FoldPadWithPackOp,
                   FoldProducerPackWithConsumerLinalgTransposeOp>(
+      patterns.getContext());
+}
+
+void populateSimplifyPackAndUnpackPatterns(RewritePatternSet &patterns) {
+  patterns.add<SimplifyPackToExpandShape, SimplifyUnPackToCollapseShape>(
       patterns.getContext());
 }
 
