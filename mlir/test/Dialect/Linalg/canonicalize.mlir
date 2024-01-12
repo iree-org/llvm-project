@@ -1017,3 +1017,19 @@ func.func @canonicalize_fill_to_copy_dest(%arg0 : tensor<?x?xf32>, %arg1 : tenso
   %copy = linalg.copy ins(%arg1 : tensor<?x?xf32>) outs(%fill : tensor<?x?xf32>) -> tensor<?x?xf32>
   return %copy : tensor<?x?xf32>
 }
+
+// -----
+
+// CHECK-LABEL: func @eliminate_identity_op_with_permuted_maps
+//  CHECK-SAME:     (%[[ARG0:[a-zA-Z0-9_]+]]: tensor<?x?xf32>
+//       CHECK:   return %[[ARG0]]
+func.func @eliminate_identity_op_with_permuted_maps(%arg0 : tensor<?x?xf32>, %arg1 : tensor<?x?xf32>) -> tensor<?x?xf32> {
+  %0 = linalg.generic {
+      indexing_maps = [affine_map<(d0, d1) -> (d1, d0)>, affine_map<(d0, d1) -> (d1, d0)>],
+      iterator_types = ["parallel", "parallel"]}
+      ins(%arg0 : tensor<?x?xf32>) outs(%arg1 : tensor<?x?xf32>) {
+    ^bb0(%b0 : f32, %b1 : f32) :
+      linalg.yield %b0 : f32
+  } -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}

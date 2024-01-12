@@ -1098,9 +1098,17 @@ struct EraseIdentityGenericOp : public OpRewritePattern<GenericOp> {
   LogicalResult matchAndRewrite(GenericOp genericOp,
                                 PatternRewriter &rewriter) const override {
     // Check all indexing maps are identity.
-    if (llvm::any_of(genericOp.getIndexingMapsArray(),
-                     [](AffineMap map) { return !map.isIdentity(); }))
-      return failure();
+    SmallVector<AffineMap> indexingMaps = genericOp.getIndexingMapsArray();
+    if (llvm::any_of(indexingMaps,
+                     [](AffineMap map) { return !map.isPermutation(); }))
+      return rewriter.notifyMatchFailure(genericOp,
+                                         "non-permutation indexing maps");
+
+    // Check that all the indexing maps are the same.
+    if (!indexingMaps.empty() && llvm::any_of(indexingMaps, [&](AffineMap map) {
+          return map != indexingMaps[0];
+        }))
+      return rewriter.notifyMatchFailure(genericOp, "uequal indexing maps");
 
     // Check that the body of the linalg operation is just a linalg.yield
     // operation.
@@ -1109,7 +1117,7 @@ struct EraseIdentityGenericOp : public OpRewritePattern<GenericOp> {
       return failure();
     auto yieldOp = dyn_cast<linalg::YieldOp>(body.getTerminator());
     if (!yieldOp)
-      return failure();
+      return rewriter.notifyMatchFailure(genericOp, "non-trivial body");
 
     // In the buffer case, we need to check exact buffer equality.
     if (genericOp.hasBufferSemantics()) {
