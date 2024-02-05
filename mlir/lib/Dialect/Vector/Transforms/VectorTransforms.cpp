@@ -1236,7 +1236,7 @@ class DropInnerMostUnitDimsTransferRead
       return failure();
 
     auto srcType = dyn_cast<MemRefType>(readOp.getSource().getType());
-    if (!srcType)
+    if (!srcType || !srcType.hasStaticShape())
       return failure();
 
     if (!readOp.getPermutationMap().isMinorIdentity())
