@@ -3983,6 +3983,39 @@ static bool paddingIsNotNeeded(PackOp op) {
                                       op.getMixedTiles());
 }
 
+static bool inferStaticShape(PackOp packOp, SmallVectorImpl<int64_t> &srcShape,
+                             SmallVectorImpl<int64_t> &destShape) {
+  bool changeNeeded = false;
+  srcShape.assign(packOp.getSourceType().getShape().begin(),
+                  packOp.getSourceType().getShape().end());
+  destShape.assign(packOp.getDestType().getShape().begin(),
+                   packOp.getDestType().getShape().end());
+  llvm::SmallSetVector<int64_t, 4> innerDims;
+  innerDims.insert(packOp.getInnerDimsPos().begin(),
+                   packOp.getInnerDimsPos().end());
+  auto outerDimsPerm = packOp.getOuterDimsPerm();
+  int srcRank = packOp.getSourceRank();
+  for (auto i : llvm::seq<int64_t>(0, srcRank)) {
+    if (innerDims.contains(i))
+      continue;
+    int64_t srcPos = i;
+    int64_t destPos = i;
+    if (!outerDimsPerm.empty())
+      srcPos = outerDimsPerm[destPos];
+    if (ShapedType::isDynamic(srcShape[srcPos]) ==
+        ShapedType::isDynamic(destShape[destPos])) {
+      continue;
+    }
+    int64_t size = srcShape[srcPos];
+    if (ShapedType::isDynamic(size))
+      size = destShape[destPos];
+    srcShape[srcPos] = size;
+    destShape[destPos] = size;
+    changeNeeded = true;
+  }
+  return changeNeeded;
+}
+
 LogicalResult PackOp::canonicalize(PackOp packOp, PatternRewriter &rewriter) {
   // Fold an unpack(pack(x)) to x.
   if (auto unPackOp = packOp.getSource().getDefiningOp<UnPackOp>()) {
@@ -4002,6 +4035,24 @@ LogicalResult PackOp::canonicalize(PackOp packOp, PatternRewriter &rewriter) {
     packOp.getPaddingValueMutable().clear();
     rewriter.finalizeOpModification(packOp);
     return success();
+  }
+
+  // Insert tensor.cast ops if we can infer static shapes.
+  SmallVector<int64_t> srcShape, destShape;
+  if (inferStaticShape(packOp, srcShape, destShape)) {
+    Location loc = packOp.getLoc();
+    rewriter.startOpModification(packOp);
+    if (srcShape != packOp.getSourceType().getShape()) {
+      auto newSrcType = packOp.getSourceType().clone(srcShape);
+      packOp.getSourceMutable().assign(
+          rewriter.create<tensor::CastOp>(loc, newSrcType, packOp.getSource()));
+    }
+    if (destShape != packOp.getDestType().getShape()) {
+      auto newDestType = packOp.getDestType().clone(destShape);
+      packOp.getDestMutable().assign(
+          rewriter.create<tensor::CastOp>(loc, newDestType, packOp.getDest()));
+    }
+    rewriter.finalizeOpModification(packOp);
   }
   return failure();
 }
