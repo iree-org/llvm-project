@@ -710,6 +710,84 @@ struct BubbleDownBitCastForStridedSliceExtract
   }
 };
 
+// TODO
+// Shuffles vector.bitcast op before vector.insert_strided_slice op.
+//
+// This transforms IR like:
+//   %0 = vector.insert_strided_slice %src, %dst {
+//          offsets = [0], strides = [1]} : vector<4xf16> into vector<8xf16>
+//   %1 = vector.bitcast %0: vector<8xf16> to vector<4xf32>
+// Into:
+//   %0 = vector.bitcast %src : vector<4xf16> to vector<2xf32>
+//   %1 = vector.bitcast %dst : vector<8xf16> to vector<4xf32>
+//   %2 = vector.insert_strided_slice %src, %dst {
+//          offsets = [0], strides = [1]} : vector<2xf32> into vector<4xf32>
+struct BubbleUpBitCastForInsert : public OpRewritePattern<vector::BitCastOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(vector::BitCastOp bitcastOp,
+                                PatternRewriter &rewriter) const override {
+    VectorType castSrcType = bitcastOp.getSourceVectorType();
+    VectorType castDstType = bitcastOp.getResultVectorType();
+    assert(castSrcType.getRank() == castDstType.getRank());
+    // Skip 0-D vector which will not from InsertStridedSliceOp.
+    if (castSrcType.getRank() == 0)
+      return failure();
+
+    int64_t castSrcLastDim = castSrcType.getShape().back();
+    int64_t castDstLastDim = castDstType.getShape().back();
+    // Require casting to less elements for now; other cases to be implemented.
+    //if (castSrcLastDim < castDstLastDim)
+    //  return failure();
+
+    //assert(castSrcLastDim % castDstLastDim == 0)
+    bool isShrink = castSrcLastDim >= castDstLastDim;
+    int64_t ratio = isShrink ? castSrcLastDim / castDstLastDim
+                              : castDstLastDim / castSrcLastDim;
+    auto insertOp = bitcastOp.getSource().getDefiningOp<vector::InsertOp>();
+    if (!insertOp)
+      return failure();
+
+    // Only vector sources are supported for now.
+    auto insertSrcType = dyn_cast<VectorType>(insertOp.getSourceType());
+    if (!insertSrcType)
+      return failure();
+
+    insertOp.dump();
+
+    // Requires that shape of insert op src is castable to dstType.
+    unsigned sourceWidth = castSrcType.getElementType().getIntOrFloatBitWidth();
+    unsigned destinationWidth =
+        castDstType.getElementType().getIntOrFloatBitWidth();
+    unsigned numElements = isShrink ? destinationWidth / sourceWidth
+                                    : sourceWidth / destinationWidth;
+    if (insertSrcType.getNumElements() % numElements != 0)
+      return failure();
+
+    SmallVector<int64_t> srcDims =
+        llvm::to_vector<4>(insertSrcType.getShape());
+    srcDims.back() = isShrink ? srcDims.back() / ratio : srcDims.back() * ratio;
+    VectorType newCastSrcType =
+        VectorType::get(srcDims, castDstType.getElementType());
+
+    auto newCastSrcOp = rewriter.create<vector::BitCastOp>(
+        bitcastOp.getLoc(), newCastSrcType, insertOp.getSource());
+
+    SmallVector<int64_t> dstDims =
+        llvm::to_vector<4>(insertOp.getDestVectorType().getShape());
+    dstDims.back() = isShrink ? dstDims.back() / ratio : dstDims.back() * ratio;
+    VectorType newCastDstType =
+        VectorType::get(dstDims, castDstType.getElementType());
+
+    auto newCastDstOp = rewriter.create<vector::BitCastOp>(
+        bitcastOp.getLoc(), newCastDstType, insertOp.getDest());
+
+    rewriter.replaceOpWithNewOp<vector::InsertOp>(
+        bitcastOp, newCastSrcOp, newCastDstOp, insertOp.getMixedPosition());
+    return success();
+  }
+};
+
 // Shuffles vector.bitcast op before vector.insert_strided_slice op.
 //
 // This transforms IR like:
@@ -1782,8 +1860,8 @@ void mlir::vector::populateBubbleVectorBitCastOpPatterns(
     RewritePatternSet &patterns, PatternBenefit benefit) {
   patterns.add<BubbleDownVectorBitCastForExtract,
                BubbleDownBitCastForStridedSliceExtract,
-               BubbleUpBitCastForStridedSliceInsert>(patterns.getContext(),
-                                                     benefit);
+               BubbleUpBitCastForInsert, BubbleUpBitCastForStridedSliceInsert>(
+      patterns.getContext(), benefit);
 }
 
 void mlir::vector::populateBreakDownVectorBitCastOpPatterns(
