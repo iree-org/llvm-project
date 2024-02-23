@@ -753,8 +753,6 @@ struct BubbleUpBitCastForInsert : public OpRewritePattern<vector::BitCastOp> {
     if (!insertSrcType)
       return failure();
 
-    insertOp.dump();
-
     // Requires that shape of insert op src is castable to dstType.
     unsigned sourceWidth = castSrcType.getElementType().getIntOrFloatBitWidth();
     unsigned destinationWidth =
