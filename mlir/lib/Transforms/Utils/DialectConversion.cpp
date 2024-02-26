@@ -1230,8 +1230,8 @@ LogicalResult ConversionPatternRewriterImpl::remapValues(
 
 bool ConversionPatternRewriterImpl::isOpIgnored(Operation *op) const {
   // Check to see if this operation was replaced or its parent ignored.
-  return ignoredOps.count(op->getParentOp()) ||
-         hasRewrite<ReplaceOperationRewrite>(rewrites, op);
+  return ignoredOps.count(op->getParentOp()) || ignoredOps.count(op);
+//         hasRewrite<ReplaceOperationRewrite>(rewrites, op);
 }
 
 void ConversionPatternRewriterImpl::markNestedOpsIgnored(Operation *op) {
@@ -1506,6 +1506,7 @@ void ConversionPatternRewriterImpl::notifyOpReplaced(Operation *op,
 
   // Mark this operation as recursively ignored so that we don't need to
   // convert any nested operations.
+  ignoredOps.insert(op);
   markNestedOpsIgnored(op);
 }
 
