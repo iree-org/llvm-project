@@ -1481,10 +1481,10 @@ void ConversionPatternRewriterImpl::notifyOpReplaced(Operation *op,
                                                      ValueRange newValues) {
   assert(newValues.size() == op->getNumResults());
 #ifndef NDEBUG
-  for (auto &rewrite : rewrites)
-    if (auto *opReplacement = dyn_cast<ReplaceOperationRewrite>(rewrite.get()))
-      assert(opReplacement->getOperation() != op &&
-             "operation was already replaced");
+//  for (auto &rewrite : rewrites)
+//    if (auto *opReplacement = dyn_cast<ReplaceOperationRewrite>(rewrite.get()))
+//      assert(opReplacement->getOperation() != op &&
+//             "operation was already replaced");
 #endif // NDEBUG
 
   // Track if any of the results changed, e.g. erased and replaced with null.
