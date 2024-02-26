@@ -1948,6 +1948,18 @@ OperationLegalizer::legalize(Operation *op,
   return failure();
 }
 
+struct CreateTrackingListener : RewriterBase::ForwardingListener {
+  using RewriterBase::ForwardingListener::ForwardingListener;
+
+  void notifyOperationInserted(Operation *op, OpBuilder::InsertPoint previous) override {
+    ForwardingListener::notifyOperationInserted(op, previous);
+    if (!previous.isSet())
+      newOps.push_back(op);
+  }
+
+  SmallVector<Operation *> newOps;
+};
+
 LogicalResult
 OperationLegalizer::legalizeWithFold(Operation *op,
                                      ConversionPatternRewriter &rewriter) {
@@ -1960,9 +1972,11 @@ OperationLegalizer::legalizeWithFold(Operation *op,
   });
 
   // Try to fold the operation.
+  CreateTrackingListener listener(rewriter.getListener());
+  IRRewriter foldRewriter(rewriter.getContext(), &listener);
+  foldRewriter.setInsertionPoint(op);
   SmallVector<Value, 2> replacementValues;
-  rewriter.setInsertionPoint(op);
-  if (failed(rewriter.tryFold(op, replacementValues))) {
+  if (failed(foldRewriter.tryFold(op, replacementValues))) {
     LLVM_DEBUG(logFailure(rewriterImpl.logger, "unable to fold"));
     return failure();
   }
@@ -1971,16 +1985,11 @@ OperationLegalizer::legalizeWithFold(Operation *op,
   rewriter.replaceOp(op, replacementValues);
 
   // Recursively legalize any new constant operations.
-  for (unsigned i = curState.numRewrites, e = rewriterImpl.rewrites.size();
-       i != e; ++i) {
-    auto *createOp =
-        dyn_cast<CreateOperationRewrite>(rewriterImpl.rewrites[i].get());
-    if (!createOp)
-      continue;
-    if (failed(legalize(createOp->getOperation(), rewriter))) {
+  for (Operation *op : listener.newOps) {
+    if (failed(legalize(op, rewriter))) {
       LLVM_DEBUG(logFailure(rewriterImpl.logger,
                             "failed to legalize generated constant '{0}'",
-                            createOp->getOperation()->getName()));
+                            op->getName()));
       rewriterImpl.resetState(curState);
       return failure();
     }
@@ -2095,6 +2104,18 @@ LogicalResult OperationLegalizer::legalizePatternBlockRewrites(
     ConversionPatternRewriterImpl &impl, RewriterState &state,
     RewriterState &newState) {
   SmallPtrSet<Operation *, 16> operationsToIgnore;
+  bool operationsToIgnoredPopulated = false;
+  auto populateIngoredOps = [&]() {
+    for (unsigned i = state.numRewrites, e = impl.rewrites.size(); i != e;
+          ++i) {
+      auto *createOp =
+          dyn_cast<CreateOperationRewrite>(impl.rewrites[i].get());
+      if (!createOp)
+        continue;
+      operationsToIgnore.insert(createOp->getOperation());
+    }
+    operationsToIgnoredPopulated = true;
+  };
 
   // If the pattern moved or created any blocks, make sure the types of block
   // arguments get legalized.
@@ -2126,15 +2147,8 @@ LogicalResult OperationLegalizer::legalizePatternBlockRewrites(
     // This is because we will attempt to legalize the parent operation, and
     // blocks in regions created by this pattern will already be legalized later
     // on. If we haven't built the set yet, build it now.
-    if (operationsToIgnore.empty()) {
-      for (unsigned i = state.numRewrites, e = impl.rewrites.size(); i != e;
-           ++i) {
-        auto *createOp =
-            dyn_cast<CreateOperationRewrite>(impl.rewrites[i].get());
-        if (!createOp)
-          continue;
-        operationsToIgnore.insert(createOp->getOperation());
-      }
+    if (!operationsToIgnoredPopulated) {
+      populateIngoredOps();
     }
 
     // If this operation should be considered for re-legalization, try it.
