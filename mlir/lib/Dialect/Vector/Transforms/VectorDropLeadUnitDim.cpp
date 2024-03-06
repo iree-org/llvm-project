@@ -8,6 +8,7 @@
 
 #include <numeric>
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
@@ -15,6 +16,7 @@
 #include "mlir/Dialect/Vector/Transforms/VectorTransforms.h"
 #include "mlir/Dialect/Vector/Utils/VectorUtils.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/TypeUtilities.h"
 
 #define DEBUG_TYPE "vector-drop-unit-dim"
@@ -540,6 +542,48 @@ struct CastAwayConstantMaskLeadingOneDim
   }
 };
 
+// Drops leading 1 dimensions from vector.constant_mask and inserts a
+// vector.broadcast back to the original shape.
+struct CastAwayCreateMaskLeadingOneDim
+    : public OpRewritePattern<vector::CreateMaskOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(vector::CreateMaskOp mask,
+                                PatternRewriter &rewriter) const override {
+    VectorType oldType = mask.getType();
+    VectorType newType = trimLeadingOneDims(oldType);
+
+    if (newType == oldType)
+      return failure();
+
+    int64_t dropDim = oldType.getRank() - newType.getRank();
+    SmallVector<Value> dimSizes(mask.getOperands());
+    Location loc = mask.getLoc();
+
+    // If any of the dropped unit dims has a size of `0`, the entire mask is a
+    // zero mask, else the unit dim has no effect on the mask.
+    SmallVector<OpFoldResult> leadingSizes(dimSizes.begin(),
+                                           dimSizes.begin() + dropDim + 1);
+    Value minLeadingSize = affine::makeComposedAffineMin(
+        rewriter, mask.getLoc(),
+        AffineMap::getMultiDimIdentityMap(leadingSizes.size(),
+                                          rewriter.getContext()),
+        leadingSizes);
+    Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value cmpZero = rewriter.create<arith::CmpIOp>(
+        mask.getLoc(), arith::CmpIPredicate::sgt, minLeadingSize, zero);
+    Value flatLeadingSize =
+        rewriter.create<arith::SelectOp>(loc, cmpZero, dimSizes[dropDim], zero);
+    SmallVector<Value> newDimSizes({flatLeadingSize});
+    newDimSizes.append(dimSizes.begin() + dropDim + 1, dimSizes.end());
+
+    auto newMask = rewriter.create<vector::CreateMaskOp>(mask.getLoc(), newType,
+                                                         newDimSizes);
+    rewriter.replaceOpWithNewOp<vector::BroadcastOp>(mask, oldType, newMask);
+    return success();
+  }
+};
+
 } // namespace
 
 void mlir::vector::populateCastAwayVectorLeadingOneDimPatterns(
@@ -547,7 +591,8 @@ void mlir::vector::populateCastAwayVectorLeadingOneDimPatterns(
   patterns
       .add<CastAwayExtractStridedSliceLeadingOneDim,
            CastAwayInsertStridedSliceLeadingOneDim, CastAwayInsertLeadingOneDim,
-           CastAwayConstantMaskLeadingOneDim, CastAwayTransferReadLeadingOneDim,
+           CastAwayConstantMaskLeadingOneDim, CastAwayCreateMaskLeadingOneDim,
+           CastAwayTransferReadLeadingOneDim,
            CastAwayTransferWriteLeadingOneDim, CastAwayElementwiseLeadingOneDim,
            CastAwayContractionLeadingOneDim>(patterns.getContext(), benefit);
   populateShapeCastFoldingPatterns(patterns, benefit);
