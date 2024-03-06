@@ -21,6 +21,7 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tensor/Utils/Utils.h"
 #include "mlir/Dialect/Utils/IndexingUtils.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Dialect/Vector/Interfaces/MaskableOpInterface.h"
@@ -1663,6 +1664,61 @@ vectorizeAsTensorUnpackOp(RewriterBase &rewriter, tensor::UnPackOp unpackOp,
   return success();
 }
 
+/// Create a TransferReadOp from `source` with static shape `readShape`. If the
+/// vector type for the read is not the same as the type of `source`, then a
+/// mask is created on the read.
+static Value createPadMaskedRead(OpBuilder &builder, Location loc,
+                                 tensor::PadOp padOp,
+                                 ArrayRef<int64_t> readShape, Value padValue) {
+  assert(llvm::none_of(readShape,
+                       [](int64_t s) { return s == ShapedType::kDynamic; }));
+  Value source = padOp.getSource();
+  auto sourceShape = dyn_cast<ShapedType>(source.getType()).getShape();
+  assert(sourceShape.size() == readShape.size());
+  auto maskType = VectorType::get(readShape, builder.getI1Type());
+  auto vectorType = VectorType::get(readShape, padValue.getType());
+  int64_t readRank = readShape.size();
+  auto zero = builder.create<arith::ConstantIndexOp>(loc, 0);
+  auto transferReadOp = builder.create<vector::TransferReadOp>(
+      loc,
+      /*vectorType=*/vectorType,
+      /*source=*/source,
+      /*indices=*/SmallVector<Value>(readRank, zero),
+      /*padding=*/padValue,
+      /*inBounds=*/SmallVector<bool>(readRank, true));
+  if (llvm::equal(readShape, sourceShape)) {
+    return transferReadOp;
+  }
+  SmallVector<OpFoldResult> mixedSourceDims =
+      tensor::getMixedSizes(builder, loc, source);
+  SmallVector<OpFoldResult> mixedLowPadDims = padOp.getMixedLowPad();
+  SmallVector<OpFoldResult> maskUpperBoundSizes;
+  AffineExpr dim0, dim1;
+  bindDims(builder.getContext(), dim0, dim1);
+  AffineExpr sum = dim0 + dim1;
+  for (auto [size, lowPad] :
+       llvm::zip_equal(mixedSourceDims, mixedLowPadDims)) {
+    maskUpperBoundSizes.push_back(affine::makeComposedFoldedAffineApply(
+        builder, loc, sum, {size, lowPad}));
+  }
+  Value highMask =
+      builder.create<vector::CreateMaskOp>(loc, maskType, maskUpperBoundSizes);
+  Value falseVal = builder.create<arith::ConstantOp>(
+      loc, builder.getI1Type(), builder.getZeroAttr(builder.getI1Type()));
+  Value lowMask = builder.create<vector::SplatOp>(loc, maskType, falseVal);
+  for (auto [i, lowPad] : llvm::enumerate(mixedLowPadDims)) {
+    if (isZeroIndex(lowPad))
+      continue;
+    SmallVector<OpFoldResult> bounds = maskUpperBoundSizes;
+    bounds[i] = lowPad;
+    Value tmpMask = builder.create<vector::CreateMaskOp>(loc, maskType, bounds);
+    lowMask = builder.create<arith::OrIOp>(loc, lowMask, tmpMask);
+  }
+  Value mask = builder.create<arith::XOrIOp>(loc, lowMask, highMask);
+  return mlir::vector::maskOperation(builder, transferReadOp, mask)
+      ->getResult(0);
+}
+
 /// Vectorize a `padOp` with (1) static result type, (2) constant padding value
 /// and (3) all-zero lowPad to
 ///   `transfer_write_in_bounds(transfer_read_masked(pad_source, pad_value))`.
@@ -1683,8 +1739,14 @@ vectorizeAsTensorPadOp(RewriterBase &rewriter, tensor::PadOp padOp,
           .reifyResultShapes(rewriter, reifiedReturnShapes);
   (void)status; // prevent unused variable warning on non-assert builds
   assert(succeeded(status) && "failed to reify result shapes");
-  auto maskedRead = createReadOrMaskedRead(rewriter, loc, padOp.getSource(),
-                                           inputVectorSizes, padValue);
+  Value maskedRead;
+  if (!llvm::all_of(padOp.getStaticLow(), [](int64_t l) { return l == 0; })) {
+    maskedRead =
+        createPadMaskedRead(rewriter, loc, padOp, inputVectorSizes, padValue);
+  } else {
+    maskedRead = createReadOrMaskedRead(rewriter, loc, padOp.getSource(),
+                                        inputVectorSizes, padValue);
+  }
   Operation *write = createWriteOrMaskedWrite(
       rewriter, loc, maskedRead, reifiedReturnShapes[0], inputVectorSizes);
   newResults.push_back(write->getResult(0));
@@ -1884,14 +1946,6 @@ vectorizePadOpPrecondition(tensor::PadOp padOp,
   ArrayRef<int64_t> resultTensorShape = padOp.getResultType().getShape();
   if (failed(isValidMaskedInputVector(resultTensorShape, inputVectorSizes)))
     return failure();
-
-  if (llvm::any_of(padOp.getLow(), [](Value v) {
-        std::optional<int64_t> res = getConstantIntValue(v);
-        return !res.has_value() || res.value() != 0;
-      })) {
-    LDBG("low pad must all be zero: " << padOp << "\n");
-    return failure();
-  }
 
   return success();
 }
