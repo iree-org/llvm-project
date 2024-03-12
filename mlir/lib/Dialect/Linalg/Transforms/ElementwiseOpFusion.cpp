@@ -537,11 +537,7 @@ static bool isFusableWithReshapeByDimExpansion(LinalgOp linalgOp,
                             .getValue()
                             .isProjectedPermutation();
                       }) &&
-         operandMap.getNumResults() > 0 &&
-         llvm::all_of(operandMap.getResults(), [&](AffineExpr expr) {
-           return isParallelIterator(
-               iteratorTypes[cast<AffineDimExpr>(expr).getPosition()]);
-         });
+         operandMap.getNumResults() > 0;
 }
 
 namespace {
@@ -1126,13 +1122,13 @@ bool mlir::linalg::areDimSequencesPreserved(
 // to preserve the accesses pattern. When no dimensions of the iteration
 // space are collapsable and empty vector is returned.
 static SmallVector<ReassociationIndices>
-getCollapsableIterationSpaceDims(GenericOp genericOp, OpOperand *fusableOperand,
+getCollapsableIterationSpaceDims(LinalgOp linalgOp, OpOperand *fusableOperand,
                                  ArrayRef<ReassociationIndices> reassociation) {
   // Some basic checks for this fusion to be valid.
-  if (!genericOp.hasPureTensorSemantics() || genericOp.getNumDpsInits() != 1)
+  if (!linalgOp.hasPureTensorSemantics() || linalgOp.getNumDpsInits() != 1)
     return {};
 
-  if (!llvm::all_of(genericOp.getIndexingMapsArray(), [](AffineMap map) {
+  if (!llvm::all_of(linalgOp.getIndexingMapsArray(), [](AffineMap map) {
         return map.isProjectedPermutation();
       })) {
     return {};
@@ -1140,11 +1136,11 @@ getCollapsableIterationSpaceDims(GenericOp genericOp, OpOperand *fusableOperand,
 
   // Compute all the loops with the reduction iterator types.
   SmallVector<unsigned> reductionDims;
-  genericOp.getReductionDims(reductionDims);
+  linalgOp.getReductionDims(reductionDims);
 
   llvm::SmallDenseSet<unsigned, 4> processedIterationDims;
-  AffineMap indexingMap = genericOp.getMatchingIndexingMap(fusableOperand);
-  auto iteratorTypes = genericOp.getIteratorTypesArray();
+  AffineMap indexingMap = linalgOp.getMatchingIndexingMap(fusableOperand);
+  auto iteratorTypes = linalgOp.getIteratorTypesArray();
   SmallVector<ReassociationIndices> iterationSpaceReassociation;
   for (ReassociationIndicesRef foldedRangeDims : reassociation) {
     assert(!foldedRangeDims.empty() && "unexpected empty reassociation");
@@ -1206,7 +1202,7 @@ getCollapsableIterationSpaceDims(GenericOp genericOp, OpOperand *fusableOperand,
     }
 
     // Check that the sequence is preserved in all indexing maps.
-    if (llvm::any_of(genericOp.getIndexingMapsArray(),
+    if (llvm::any_of(linalgOp.getIndexingMapsArray(),
                      [&](AffineMap indexingMap) {
                        return !isDimSequencePreserved(indexingMap,
                                                       foldedIterationSpaceDims);
@@ -1635,38 +1631,38 @@ namespace {
 /// Pattern to fuse a tensor.expand_shape op with its consumer generic op by
 /// contracting dimensions of the loop.
 class FoldWithProducerReshapeOpByCollapsing
-    : public OpRewritePattern<GenericOp> {
+    : public OpInterfaceRewritePattern<LinalgOp> {
 public:
   FoldWithProducerReshapeOpByCollapsing(MLIRContext *context,
                                         ControlFusionFn foldReshapes,
                                         PatternBenefit benefit = 1)
-      : OpRewritePattern<GenericOp>(context, benefit),
+      : OpInterfaceRewritePattern<LinalgOp>(context, benefit),
         controlFoldingReshapes(std::move(foldReshapes)) {}
 
-  LogicalResult matchAndRewrite(GenericOp genericOp,
+  LogicalResult matchAndRewrite(LinalgOp linalgOp,
                                 PatternRewriter &rewriter) const override {
-    for (OpOperand &opOperand : genericOp->getOpOperands()) {
+    for (OpOperand &opOperand : linalgOp->getOpOperands()) {
       tensor::ExpandShapeOp reshapeOp =
           opOperand.get().getDefiningOp<tensor::ExpandShapeOp>();
       if (!reshapeOp)
         continue;
 
       SmallVector<ReassociationIndices> collapsableIterationDims =
-          getCollapsableIterationSpaceDims(genericOp, &opOperand,
+          getCollapsableIterationSpaceDims(linalgOp, &opOperand,
                                            reshapeOp.getReassociationIndices());
       if (collapsableIterationDims.empty() ||
           !controlFoldingReshapes(&opOperand)) {
         continue;
       }
 
-      std::optional<CollapseResult> collapseResult = collapseOpIterationDims(
-          genericOp, collapsableIterationDims, rewriter);
+      std::optional<CollapseResult> collapseResult =
+          collapseOpIterationDims(linalgOp, collapsableIterationDims, rewriter);
       if (!collapseResult) {
         return rewriter.notifyMatchFailure(
-            genericOp, "failed to do the fusion by collapsing transformation");
+            linalgOp, "failed to do the fusion by collapsing transformation");
       }
 
-      rewriter.replaceOp(genericOp, collapseResult->results);
+      rewriter.replaceOp(linalgOp, collapseResult->results);
       return success();
     }
     return failure();
