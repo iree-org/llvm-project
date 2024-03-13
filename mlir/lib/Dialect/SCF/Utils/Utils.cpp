@@ -12,7 +12,9 @@
 
 #include "mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/Analysis/SliceAnalysis.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -548,61 +550,126 @@ static void normalizeLoop(scf::ForOp loop, scf::ForOp outer, scf::ForOp inner) {
   loop.setStep(loopPieces.step);
 }
 
-LogicalResult mlir::coalesceLoops(MutableArrayRef<scf::ForOp> loops) {
+static void normalizeLoop(RewriterBase &rewriter, scf::ForOp loop,
+                          scf::ForOp outermost, scf::ForOp innermost) {
+  OpBuilder::InsertionGuard g(rewriter);
+  rewriter.setInsertionPoint(outermost);
+  AffineExpr s0, s1, s2;
+  bindSymbols(rewriter.getContext(), s0, s1, s2);
+  AffineExpr normalizeExpr = (s1 - s0).ceilDiv(s2);
+  Value origLb = loop.getLowerBound();
+  OpFoldResult lb = getAsOpFoldResult(origLb);
+  OpFoldResult ub = getAsOpFoldResult(loop.getUpperBound());
+  Value origStep = loop.getStep();
+  OpFoldResult step = getAsOpFoldResult(origStep);
+  Location loc = loop.getLoc();
+  OpFoldResult newUb = affine::makeComposedFoldedAffineApply(
+      rewriter, loc, normalizeExpr, {lb, ub, step});
+  Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+  Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+  loop.setLowerBound(zero);
+  loop.setUpperBound(getValueOrCreateConstantIndexOp(rewriter, loc, newUb));
+  loop.setStep(one);
+  AffineExpr recomputeIv = (s0 + s1) * s2;
+  rewriter.setInsertionPointToStart(innermost.getBody());
+  AffineMap m = AffineMap::get(0, 3, recomputeIv);
+  auto newIvOp = rewriter.create<affine::AffineApplyOp>(
+      loc, m, ValueRange{loop.getInductionVar(), origLb, origStep});
+  rewriter.replaceAllUsesExcept(loop.getInductionVar(), newIvOp->getResult(0),
+                                newIvOp);
+}
+
+LogicalResult mlir::coalesceLoops(RewriterBase &rewriter,
+                                  MutableArrayRef<scf::ForOp> loops) {
   if (loops.size() < 2)
     return failure();
 
   scf::ForOp innermost = loops.back();
   scf::ForOp outermost = loops.front();
 
+  for (auto [outerLoop, innerLoop] :
+       llvm::zip_equal(loops.drop_back(), loops.drop_front())) {
+    // Check that all the iter args for the outer loop are used as init values
+    // for the inner loops.
+    if (outerLoop.getNumRegionIterArgs() != innerLoop.getNumRegionIterArgs())
+      return failure();
+    for (auto iterArgNum : llvm::seq<int>(outerLoop.getNumRegionIterArgs())) {
+      if (outerLoop.getRegionIterArg(iterArgNum) !=
+          innerLoop.getInitArgs()[iterArgNum]) {
+        return failure();
+      }
+    }
+
+    // Check that the result values for the inner loop are  yielded by the outer
+    // loops.
+    Operation *terminator = outerLoop.getBody()->getTerminator();
+    if (terminator->getNumOperands() != innerLoop.getNumResults())
+      return failure();
+    for (auto [yieldedVal, returnedVal] :
+         llvm::zip_equal(terminator->getOperands(), innerLoop->getResults()))
+      if (yieldedVal != returnedVal)
+        return failure();
+  }
+
   // 1. Make sure all loops iterate from 0 to upperBound with step 1.  This
   // allows the following code to assume upperBound is the number of iterations.
   for (auto loop : loops)
-    normalizeLoop(loop, outermost, innermost);
+    normalizeLoop(rewriter, loop, outermost, innermost);
 
   // 2. Emit code computing the upper bound of the coalesced loop as product
   // of the number of iterations of all loops.
-  OpBuilder builder(outermost);
+  OpBuilder::InsertionGuard g(rewriter);
+  rewriter.setInsertionPoint(outermost);
   Location loc = outermost.getLoc();
-  Value upperBound = outermost.getUpperBound();
-  for (auto loop : loops.drop_front())
-    upperBound =
-        builder.create<arith::MulIOp>(loc, upperBound, loop.getUpperBound());
-  outermost.setUpperBound(upperBound);
-
-  builder.setInsertionPointToStart(outermost.getBody());
-
-  // 3. Remap induction variables. For each original loop, the value of the
-  // induction variable can be obtained by dividing the induction variable of
-  // the linearized loop by the total number of iterations of the loops nested
-  // in it modulo the number of iterations in this loop (remove the values
-  // related to the outer loops):
-  //   iv_i = floordiv(iv_linear, product-of-loop-ranges-until-i) mod range_i.
-  // Compute these iteratively from the innermost loop by creating a "running
-  // quotient" of division by the range.
-  Value previous = outermost.getInductionVar();
-  for (unsigned i = 0, e = loops.size(); i < e; ++i) {
-    unsigned idx = loops.size() - i - 1;
-    if (i != 0)
-      previous = builder.create<arith::DivSIOp>(loc, previous,
-                                                loops[idx + 1].getUpperBound());
-
-    Value iv = (i == e - 1) ? previous
-                            : builder.create<arith::RemSIOp>(
-                                  loc, previous, loops[idx].getUpperBound());
-    replaceAllUsesInRegionWith(loops[idx].getInductionVar(), iv,
-                               loops.back().getRegion());
+  SmallVector<Value> upperBounds;
+  OpFoldResult upperBound = rewriter.getIndexAttr(1);
+  AffineExpr s0, s1;
+  bindSymbols(rewriter.getContext(), s0, s1);
+  AffineExpr mulExpr = s0 * s1;
+  for (auto loop : loops) {
+    Value currUpperBound = loop.getUpperBound();
+    upperBound = affine::makeComposedFoldedAffineApply(
+        rewriter, loc, mulExpr,
+        ArrayRef<OpFoldResult>{upperBound, currUpperBound});
+    upperBounds.push_back(currUpperBound);
   }
+  outermost.setUpperBound(
+      getValueOrCreateConstantIndexOp(rewriter, loc, upperBound));
 
-  // 4. Move the operations from the innermost just above the second-outermost
-  // loop, delete the extra terminator and the second-outermost loop.
-  scf::ForOp second = loops[1];
-  innermost.getBody()->back().erase();
-  outermost.getBody()->getOperations().splice(
-      Block::iterator(second.getOperation()),
-      innermost.getBody()->getOperations());
-  second.erase();
+  rewriter.setInsertionPointToStart(innermost.getBody());
+  auto delinearizeIvs = rewriter.create<affine::AffineDelinearizeIndexOp>(
+      loc, outermost.getInductionVar(), upperBounds);
+  rewriter.replaceAllUsesExcept(outermost.getInductionVar(),
+                                delinearizeIvs.getResult(0), delinearizeIvs);
+
+  for (int i = loops.size() - 1; i > 0; --i) {
+    auto outerLoop = loops[i - 1];
+    auto innerLoop = loops[i];
+
+    rewriter.replaceAllUsesWith(
+        innerLoop.getInductionVar(),
+        getValueOrCreateConstantIndexOp(rewriter, loc,
+                                        delinearizeIvs.getResult(i)));
+    for (auto [outerLoopIterArg, innerLoopIterArg] : llvm::zip_equal(
+             outerLoop.getRegionIterArgs(), innerLoop.getRegionIterArgs())) {
+      rewriter.replaceAllUsesWith(innerLoopIterArg, outerLoopIterArg);
+    }
+    Operation *innerTerminator = innerLoop.getBody()->getTerminator();
+    auto yieldedVals = llvm::to_vector(innerTerminator->getOperands());
+    rewriter.eraseOp(innerTerminator);
+    outerLoop.getBody()->getOperations().splice(
+        Block::iterator(innerLoop), innerLoop.getBody()->getOperations());
+    rewriter.replaceOp(innerLoop, yieldedVals);
+  }
   return success();
+}
+
+LogicalResult mlir::coalesceLoops(MutableArrayRef<scf::ForOp> loops) {
+  if (loops.empty()) {
+    return success();
+  }
+  IRRewriter rewriter(loops.front().getContext());
+  return coalesceLoops(rewriter, loops);
 }
 
 void mlir::collapseParallelLoops(

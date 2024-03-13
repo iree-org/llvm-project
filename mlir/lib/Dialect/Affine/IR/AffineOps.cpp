@@ -4529,6 +4529,40 @@ LogicalResult AffineDelinearizeIndexOp::verify() {
   return success();
 }
 
+namespace {
+struct DropUnitOuterDelinearizeDims
+    : public OpRewritePattern<AffineDelinearizeIndexOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineDelinearizeIndexOp indexOp,
+                                PatternRewriter &rewriter) const override {
+    ValueRange basis = indexOp.getBasis();
+    if (basis.empty()) {
+      return failure();
+    }
+    std::optional<int64_t> basisValue =
+        getConstantIntValue(getAsOpFoldResult(basis.front()));
+    if (!basisValue || basisValue != 1) {
+      return failure();
+    }
+    SmallVector<Value> replacements;
+    Location loc = indexOp.getLoc();
+    replacements.push_back(rewriter.create<arith::ConstantIndexOp>(loc, 0));
+    auto newIndexOp = rewriter.create<AffineDelinearizeIndexOp>(
+        loc, indexOp.getLinearIndex(), basis.drop_front());
+    replacements.append(newIndexOp->result_begin(), newIndexOp->result_end());
+    rewriter.replaceOp(indexOp, replacements);
+    return success();
+  }
+};
+
+} // namespace
+
+void AffineDelinearizeIndexOp::getCanonicalizationPatterns(
+    RewritePatternSet &results, MLIRContext *context) {
+  results.add<DropUnitOuterDelinearizeDims>(context);
+}
+
 //===----------------------------------------------------------------------===//
 // TableGen'd op method definitions
 //===----------------------------------------------------------------------===//
