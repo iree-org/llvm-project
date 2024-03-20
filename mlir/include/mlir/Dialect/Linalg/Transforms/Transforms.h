@@ -289,6 +289,12 @@ struct LinalgPaddingOptions {
     paddingDimensions.assign(pd.begin(), pd.end());
     return *this;
   }
+  /// A list of pre-configured sizes for each dimension.
+  std::optional<SmallVector<int64_t>> smallestStaticBounds;
+  LinalgPaddingOptions &setSmallestStaticBounds(ArrayRef<int64_t> m) {
+    smallestStaticBounds.emplace(m.begin(), m.end());
+    return *this;
+  }
   /// A list of multiples to which each padding dimension should be padded to.
   std::optional<SmallVector<int64_t>> padToMultipleOf;
   LinalgPaddingOptions &setPadToMultipleOf(ArrayRef<int64_t> m) {

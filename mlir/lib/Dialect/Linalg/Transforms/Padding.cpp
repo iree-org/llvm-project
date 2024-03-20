@@ -75,10 +75,18 @@ static LogicalResult computePaddedShape(linalg::LinalgOp opToPad,
             presburger::BoundType::UB, opOperand->get(),
             /*dim=*/i, /*stopCondition=*/nullptr, /*closedUB=*/true);
     if (failed(upperBound)) {
-      LLVM_DEBUG(DBGS() << "----could not compute a bounding box for padding");
-      return failure();
+      LLVM_DEBUG(
+          DBGS() << "----could not compute a bounding box for padding\n");
+      if (!options.smallestStaticBounds)
+        return failure();
+      LLVM_DEBUG(
+          DBGS()
+          << "----Fallback to use pre-configured smallest static bounds\n");
+      paddedShape[i] =
+          ceil(options.smallestStaticBounds.value()[i], shapeDimToMultiple[i]);
+    } else {
+      paddedShape[i] = ceil(*upperBound, shapeDimToMultiple[i]);
     }
-    paddedShape[i] = ceil(*upperBound, shapeDimToMultiple[i]);
     LLVM_DEBUG(DBGS() << "----new dim size: " << paddedShape[i] << "\n");
   }
 
