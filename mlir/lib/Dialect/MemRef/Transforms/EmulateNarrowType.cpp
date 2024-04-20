@@ -452,6 +452,27 @@ struct ConvertMemRefSubview final : OpConversionPattern<memref::SubViewOp> {
   }
 };
 
+//===----------------------------------------------------------------------===//
+// ConvertMemRefCollapseShape
+//===----------------------------------------------------------------------===//
+
+struct ConvertMemRefCollapseShape final
+    : OpConversionPattern<memref::CollapseShapeOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(memref::CollapseShapeOp collapseShapeOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value srcVal = adaptor.getSrc();
+    auto newTy = dyn_cast<MemRefType>(srcVal.getType());
+    if (!newTy)
+      return failure();
+
+    rewriter.replaceOp(collapseShapeOp, srcVal);
+    return success();
+  }
+};
+
 } // end anonymous namespace
 
 //===----------------------------------------------------------------------===//
@@ -464,7 +485,8 @@ void memref::populateMemRefNarrowTypeEmulationPatterns(
 
   // Populate `memref.*` conversion patterns.
   patterns.add<ConvertMemRefAllocation<memref::AllocOp>,
-               ConvertMemRefAllocation<memref::AllocaOp>, ConvertMemRefLoad,
+               ConvertMemRefAllocation<memref::AllocaOp>,
+               ConvertMemRefCollapseShape, ConvertMemRefLoad,
                ConvertMemrefStore, ConvertMemRefAssumeAlignment,
                ConvertMemRefSubview, ConvertMemRefReinterpretCast>(
       typeConverter, patterns.getContext());
