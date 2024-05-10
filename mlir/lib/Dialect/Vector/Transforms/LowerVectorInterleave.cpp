@@ -16,6 +16,7 @@
 #include "mlir/Dialect/Vector/Utils/VectorUtils.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/Support/LogicalResult.h"
 
 #define DEBUG_TYPE "vector-interleave-lowering"
 
@@ -77,9 +78,33 @@ private:
   int64_t targetRank = 1;
 };
 
+class InterleaveToShuffle : public OpRewritePattern<vector::InterleaveOp> {
+public:
+  InterleaveToShuffle(MLIRContext *context, PatternBenefit benefit = 1)
+      : OpRewritePattern(context, benefit){};
+
+  LogicalResult matchAndRewrite(vector::InterleaveOp op,
+                                PatternRewriter &rewriter) const override {
+    VectorType sourceType = op.getSourceVectorType();
+    if (sourceType.getRank() != 1) {
+      return failure();
+    }
+    rewriter.replaceOpWithNewOp<ShuffleOp>(
+        op, op.getLhs(), op.getRhs(),
+        llvm::map_to_vector(llvm::seq<int64_t>(2 * sourceType.getNumElements()),
+                            [](int64_t i) { return i / 2; }));
+    return success();
+  }
+};
+
 } // namespace
 
 void mlir::vector::populateVectorInterleaveLoweringPatterns(
     RewritePatternSet &patterns, int64_t targetRank, PatternBenefit benefit) {
   patterns.add<UnrollInterleaveOp>(targetRank, patterns.getContext(), benefit);
+}
+
+void mlir::vector::populateVectorInterleaveToShufflePatterns(
+    RewritePatternSet &patterns, PatternBenefit benefit) {
+  patterns.add<InterleaveToShuffle>(patterns.getContext(), benefit);
 }
