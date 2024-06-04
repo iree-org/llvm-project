@@ -125,8 +125,7 @@ define i1 @global_gep_ugt_null() {
 
 define i1 @global_gep_sgt_null() {
 ; CHECK-LABEL: @global_gep_sgt_null(
-; CHECK-NEXT:    [[CMP:%.*]] = icmp sgt ptr getelementptr inbounds (i8, ptr @g, i64 8), null
-; CHECK-NEXT:    ret i1 [[CMP]]
+; CHECK-NEXT:    ret i1 icmp sgt (ptr getelementptr inbounds ([2 x i32], ptr @g, i64 1), ptr null)
 ;
   %gep = getelementptr inbounds [2 x i32], ptr @g, i64 1
   %cmp = icmp sgt ptr %gep, null
@@ -233,8 +232,7 @@ define i1 @global_gep_ugt_global() {
 
 define i1 @global_gep_sgt_global() {
 ; CHECK-LABEL: @global_gep_sgt_global(
-; CHECK-NEXT:    [[CMP:%.*]] = icmp sgt ptr getelementptr inbounds (i8, ptr @g, i64 8), @g
-; CHECK-NEXT:    ret i1 [[CMP]]
+; CHECK-NEXT:    ret i1 icmp sgt (ptr getelementptr inbounds ([2 x i32], ptr @g, i64 1), ptr @g)
 ;
   %gep = getelementptr inbounds [2 x i32], ptr @g, i64 1
   %cmp = icmp sgt ptr %gep, @g
@@ -244,8 +242,7 @@ define i1 @global_gep_sgt_global() {
 ; This should not fold to true, as the offset is negative.
 define i1 @global_gep_ugt_global_neg_offset() {
 ; CHECK-LABEL: @global_gep_ugt_global_neg_offset(
-; CHECK-NEXT:    [[CMP:%.*]] = icmp ugt ptr getelementptr (i8, ptr @g, i64 -8), @g
-; CHECK-NEXT:    ret i1 [[CMP]]
+; CHECK-NEXT:    ret i1 icmp ugt (ptr getelementptr ([2 x i32], ptr @g, i64 -1), ptr @g)
 ;
   %gep = getelementptr [2 x i32], ptr @g, i64 -1
   %cmp = icmp ugt ptr %gep, @g
@@ -254,8 +251,7 @@ define i1 @global_gep_ugt_global_neg_offset() {
 
 define i1 @global_gep_sgt_global_neg_offset() {
 ; CHECK-LABEL: @global_gep_sgt_global_neg_offset(
-; CHECK-NEXT:    [[CMP:%.*]] = icmp sgt ptr getelementptr (i8, ptr @g, i64 -8), @g
-; CHECK-NEXT:    ret i1 [[CMP]]
+; CHECK-NEXT:    ret i1 icmp sgt (ptr getelementptr ([2 x i32], ptr @g, i64 -1), ptr @g)
 ;
   %gep = getelementptr [2 x i32], ptr @g, i64 -1
   %cmp = icmp sgt ptr %gep, @g
@@ -274,8 +270,7 @@ define i1 @global_gep_ugt_global_gep() {
 ; Should not fold due to signed comparison.
 define i1 @global_gep_sgt_global_gep() {
 ; CHECK-LABEL: @global_gep_sgt_global_gep(
-; CHECK-NEXT:    [[CMP:%.*]] = icmp sgt ptr getelementptr inbounds (i8, ptr @g, i64 4), @g
-; CHECK-NEXT:    ret i1 [[CMP]]
+; CHECK-NEXT:    ret i1 icmp sgt (ptr getelementptr inbounds ([2 x i32], ptr @g, i64 0, i64 1), ptr @g)
 ;
   %gep2 = getelementptr inbounds [2 x i32], ptr @g, i64 0, i64 1
   %cmp = icmp sgt ptr %gep2, @g

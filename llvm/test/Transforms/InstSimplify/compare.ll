@@ -3186,8 +3186,7 @@ define i1 @globals_inequal() {
 ; TODO: Never equal
 define i1 @globals_offset_inequal() {
 ; CHECK-LABEL: @globals_offset_inequal(
-; CHECK-NEXT:    [[RES:%.*]] = icmp ne ptr getelementptr inbounds (i8, ptr @A, i32 1), getelementptr inbounds (i8, ptr @B, i32 1)
-; CHECK-NEXT:    ret i1 [[RES]]
+; CHECK-NEXT:    ret i1 icmp ne (ptr getelementptr (i8, ptr @A, i32 1), ptr getelementptr (i8, ptr @B, i32 1))
 ;
   %a.off = getelementptr i8, ptr @A, i32 1
   %b.off = getelementptr i8, ptr @B, i32 1

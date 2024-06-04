@@ -233,7 +233,7 @@ define i64 @pr64669(i64 %a) {
 ; CHECK-SAME: (i64 [[A:%.*]]) {
 ; CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp eq ptr getelementptr inbounds (i8, ptr @b, i64 100), @c
 ; CHECK-NEXT:    [[TMP1:%.*]] = add i64 [[A]], 1
-; CHECK-NEXT:    [[ADD:%.*]] = select i1 [[CMP_NOT]], i64 0, i64 [[TMP1]]
+; CHECK-NEXT:    [[ADD:%.*]] = select i1 icmp ne (ptr getelementptr inbounds ([72 x i32], ptr @b, i64 0, i64 25), ptr @c), i64 [[TMP1]], i64 0
 ; CHECK-NEXT:    ret i64 [[ADD]]
 ;
   %cmp = icmp ne ptr getelementptr inbounds ([72 x i32], ptr @b, i64 0, i64 25), @c
