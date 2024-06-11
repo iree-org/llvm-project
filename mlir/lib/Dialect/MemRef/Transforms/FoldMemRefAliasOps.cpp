@@ -555,6 +555,10 @@ LogicalResult LoadOpOfCollapseShapeOpFolder<OpTy>::matchAndRewrite(
         rewriter.replaceOpWithNewOp<decltype(op)>(
             loadOp, collapseShapeOp.getViewSource(), sourceIndices);
       })
+      .Case([&](vector::LoadOp op) {
+        rewriter.replaceOpWithNewOp<vector::LoadOp>(
+            op, op.getType(), collapseShapeOp.getViewSource(), sourceIndices);
+      })
       .Default([](Operation *) { llvm_unreachable("unexpected operation."); });
   return success();
 }
@@ -767,6 +771,7 @@ void memref::populateFoldMemRefAliasOpPatterns(RewritePatternSet &patterns) {
                StoreOpOfExpandShapeOpFolder<memref::StoreOp>,
                LoadOpOfCollapseShapeOpFolder<affine::AffineLoadOp>,
                LoadOpOfCollapseShapeOpFolder<memref::LoadOp>,
+               LoadOpOfCollapseShapeOpFolder<vector::LoadOp>,
                StoreOpOfCollapseShapeOpFolder<affine::AffineStoreOp>,
                StoreOpOfCollapseShapeOpFolder<memref::StoreOp>,
                SubViewOfSubViewFolder, NVGPUAsyncCopyOpSubViewOpFolder>(
