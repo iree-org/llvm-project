@@ -520,7 +520,6 @@ private:
     DK_CFI_UNDEFINED,
     DK_CFI_REGISTER,
     DK_CFI_WINDOW_SAVE,
-    DK_CFI_LABEL,
     DK_CFI_B_KEY_FRAME,
     DK_MACROS_ON,
     DK_MACROS_OFF,
@@ -623,7 +622,6 @@ private:
   bool parseDirectiveCFIReturnColumn(SMLoc DirectiveLoc);
   bool parseDirectiveCFISignalFrame(SMLoc DirectiveLoc);
   bool parseDirectiveCFIUndefined(SMLoc DirectiveLoc);
-  bool parseDirectiveCFILabel(SMLoc DirectiveLoc);
 
   // macro directives
   bool parseDirectivePurgeMacro(SMLoc DirectiveLoc);
@@ -2226,8 +2224,6 @@ bool AsmParser::parseStatement(ParseStatementInfo &Info,
       return parseDirectiveCFIRegister(IDLoc);
     case DK_CFI_WINDOW_SAVE:
       return parseDirectiveCFIWindowSave(IDLoc);
-    case DK_CFI_LABEL:
-      return parseDirectiveCFILabel(IDLoc);
     case DK_MACROS_ON:
     case DK_MACROS_OFF:
       return parseDirectiveMacrosOnOff(IDVal);
@@ -4492,19 +4488,6 @@ bool AsmParser::parseDirectiveCFIUndefined(SMLoc DirectiveLoc) {
   return false;
 }
 
-/// parseDirectiveCFILabel
-/// ::= .cfi_label label
-bool AsmParser::parseDirectiveCFILabel(SMLoc Loc) {
-  StringRef Name;
-  Loc = Lexer.getLoc();
-  if (parseIdentifier(Name))
-    return TokError("expected identifier");
-  if (parseEOL())
-    return true;
-  getStreamer().emitCFILabelDirective(Loc, Name);
-  return false;
-}
-
 /// parseDirectiveAltmacro
 /// ::= .altmacro
 /// ::= .noaltmacro
@@ -5577,7 +5560,6 @@ void AsmParser::initializeDirectiveKindMap() {
   DirectiveKindMap[".cfi_undefined"] = DK_CFI_UNDEFINED;
   DirectiveKindMap[".cfi_register"] = DK_CFI_REGISTER;
   DirectiveKindMap[".cfi_window_save"] = DK_CFI_WINDOW_SAVE;
-  DirectiveKindMap[".cfi_label"] = DK_CFI_LABEL;
   DirectiveKindMap[".cfi_b_key_frame"] = DK_CFI_B_KEY_FRAME;
   DirectiveKindMap[".cfi_mte_tagged_frame"] = DK_CFI_MTE_TAGGED_FRAME;
   DirectiveKindMap[".macros_on"] = DK_MACROS_ON;
