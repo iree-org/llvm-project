@@ -338,6 +338,9 @@ static Value mfmaConcatIfNeeded(ConversionPatternRewriter &rewriter,
     if (vectorType.getElementType().isBF16())
       return rewriter.create<LLVM::BitcastOp>(
           loc, vectorType.clone(rewriter.getI16Type()), input);
+    if (vectorType.getElementType().isInteger(8))
+      return rewriter.create<LLVM::BitcastOp>(
+          loc, rewriter.getIntegerType(vectorType.getNumElements() * 8), input);
 
     if (!vectorType.getElementType().isInteger(8))
       return input;
