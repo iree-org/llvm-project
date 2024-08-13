@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -test-vector-reorder-patterns -split-input-file | FileCheck %s
+// RUN: mlir-opt %s -test-vector-sink-patterns -split-input-file | FileCheck %s
 
 // CHECK-LABEL:   func.func @broadcast_scalar_with_bcast(
 // CHECK-SAME:     %[[ARG_0:.*]]: index, %[[ARG_1:.*]]: index) -> vector<1x4xindex> {
