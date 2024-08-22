@@ -386,7 +386,7 @@ static UnitExtentReplacementInfo dropUnitExtentFromOperandMetadata(
   return info;
 }
 
-LogicalResult linalg::dropUnitDims(RewriterBase &rewriter, GenericOp genericOp,
+FailureOr<DropUnitDimsResult> linalg::dropUnitDims(RewriterBase &rewriter, GenericOp genericOp,
                                    const ControlDropUnitDims &options) {
   SmallVector<AffineMap> indexingMaps = genericOp.getIndexingMapsArray();
   if (indexingMaps.empty())
@@ -545,8 +545,7 @@ LogicalResult linalg::dropUnitDims(RewriterBase &rewriter, GenericOp genericOp,
     resultReplacements.push_back(expandedValue);
   }
 
-  rewriter.replaceOp(genericOp, resultReplacements);
-  return success();
+  return DropUnitDimsResult{replacementOp, resultReplacements};
 }
 
 namespace {
@@ -557,7 +556,12 @@ struct DropUnitDims : public OpRewritePattern<GenericOp> {
 
   LogicalResult matchAndRewrite(GenericOp genericOp,
                                 PatternRewriter &rewriter) const override {
-    return dropUnitDims(rewriter, genericOp, options);
+    FailureOr<DropUnitDimsResult> result = dropUnitDims(rewriter, genericOp, options);
+    if (failed(result)) {
+      return failure();
+    }
+    rewriter.replaceOp(genericOp, result->replacements);
+    return success();
   }
 
 private:
