@@ -1853,6 +1853,112 @@ struct DropUnitDimsFromScfForOp final : OpRewritePattern<scf::ForOp> {
   }
 };
 
+/// A pattern to drop unit dims from vector.insert_strided_slice.
+///
+/// Example:
+///
+///  BEFORE:
+///  ```mlir
+///  %insert = vector.insert_strided_slice %vector, %dest
+///    ... : vector<1x4x1x1xf32> to vector<1x1x8x2x1xf32>
+///  ```
+///
+///  AFTER:
+///  ```mlir
+///  %new_vec = vector.shape_cast %vector
+///    : vector<1x4x1x1xf32> to vector<4x1xf32>
+///  %new_dest = vector.shape_cast %dest
+///    : vector<1x1x8x2x1xf32> to vector<8x2xf32>
+///  %insert = vector.insert_strided_slice %new_vec, %new_dest
+///    : vector<4x1xf32> to vector<8x2xf32>
+///  %restore_insert = vector.shape_cast %insert
+///    : vector<8x2xf32> to vector<1x1x8x2x1xf32>
+///  ```
+///
+/// Note that dimensions are dropped based on unit dims in the destination
+/// vector, hence why there is still a unit dim on the input vector.
+struct DropUnitDimsFromInsertStridedSliceOp final
+    : OpRewritePattern<vector::InsertStridedSliceOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(vector::InsertStridedSliceOp op,
+                                PatternRewriter &rewriter) const override {
+    VectorType destType = op.getDestVectorType();
+    VectorType sourceType = op.getSourceVectorType();
+
+    SmallVector<int64_t> newShape;
+    SmallVector<bool> newScalableDims;
+    SmallVector<bool> droppedDimMask;
+    for (auto [dim, isScalable] :
+         llvm::zip_equal(destType.getShape(), destType.getScalableDims())) {
+      if (dim == 1 && !isScalable) {
+        droppedDimMask.push_back(true);
+        continue;
+      }
+
+      newShape.push_back(dim);
+      newScalableDims.push_back(isScalable);
+      droppedDimMask.push_back(false);
+    }
+
+    /// Ensure that the inserted vector is at least rank 1.
+    ArrayRef<bool> innerMask(droppedDimMask.end() - sourceType.getRank(),
+                             droppedDimMask.end());
+    if (llvm::all_of(innerMask, [](bool b) { return b; })) {
+      newShape.push_back(1);
+      newScalableDims.push_back(false);
+      droppedDimMask.back() = false;
+    }
+
+    auto destTypeWithoutUnitDims =
+        VectorType::get(newShape, destType.getElementType(), newScalableDims);
+    if (destTypeWithoutUnitDims == destType) {
+      return failure();
+    }
+
+    SmallVector<int64_t> newOffsets;
+    for (auto [dropped, offset] : llvm::zip_equal(
+             droppedDimMask, op.getOffsets().getAsRange<IntegerAttr>())) {
+      if (!dropped) {
+        newOffsets.push_back(offset.getInt());
+      }
+    }
+
+    SmallVector<int64_t> newSourceShape;
+    SmallVector<bool> sourceScalability;
+    SmallVector<int64_t> newStrides;
+    int64_t destDim = destType.getRank() - sourceType.getRank();
+    for (auto [dim, stride, scalability] : llvm::zip_equal(
+             sourceType.getShape(), op.getStrides().getAsRange<IntegerAttr>(),
+             sourceType.getScalableDims())) {
+      if (!droppedDimMask[destDim]) {
+        newSourceShape.push_back(dim);
+        newStrides.push_back(stride.getInt());
+        sourceScalability.push_back(scalability);
+      }
+      destDim++;
+    }
+
+    VectorType newSourceVectorType = VectorType::get(
+        newSourceShape, sourceType.getElementType(), sourceScalability);
+
+    Location loc = op.getLoc();
+    // Drop the unit dims of the source and destination via shape_cast.
+    auto destShapeCast = rewriter.create<vector::ShapeCastOp>(
+        loc, destTypeWithoutUnitDims, op.getDest());
+    auto sourceShapeCast = rewriter.create<vector::ShapeCastOp>(
+        loc, newSourceVectorType, op.getSource());
+    // Create the new insert_slice op.
+    auto insertWithoutUnitDims = rewriter.create<vector::InsertStridedSliceOp>(
+        loc, sourceShapeCast, destShapeCast, newOffsets, newStrides);
+    // Restore the unit dims via shape cast.
+    rewriter.replaceOpWithNewOp<vector::ShapeCastOp>(op, destType,
+                                                     insertWithoutUnitDims);
+
+    return success();
+  }
+};
+
 /// Pattern to eliminate redundant zero-constants added to reduction operands.
 /// It's enough for there to be one initial zero value, so we can eliminate the
 /// extra ones that feed into `vector.reduction <add>`. These get created by the
@@ -2058,8 +2164,9 @@ void mlir::vector::populateShapeCastFoldingPatterns(RewritePatternSet &patterns,
 void mlir::vector::populateDropUnitDimWithShapeCastPatterns(
     RewritePatternSet &patterns, PatternBenefit benefit) {
   patterns.add<DropUnitDimFromElementwiseOps, DropUnitDimsFromTransposeOp,
-               ShapeCastOpFolder, DropUnitDimsFromScfForOp>(
-      patterns.getContext(), benefit);
+               ShapeCastOpFolder, DropUnitDimsFromScfForOp,
+               DropUnitDimsFromInsertStridedSliceOp>(patterns.getContext(),
+                                                     benefit);
 }
 
 void mlir::vector::populateBubbleVectorBitCastOpPatterns(
