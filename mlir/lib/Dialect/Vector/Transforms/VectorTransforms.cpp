@@ -1959,6 +1959,108 @@ struct DropUnitDimsFromInsertStridedSliceOp final
   }
 };
 
+/// A pattern to swap a unit dim adding shape_cast with a vector.extract.
+///
+/// Example:
+///
+///  BEFORE:
+///  ```mlir
+///  %1 = vector.shape_cast %0
+///    : vector<8x4xf32> to vector<1x8x4x1xf32>
+///  %extract = vector.extract %1 [0, 2]
+///    : vector<4x1xf32> from vector<1x8x4x1xf32>
+///  ```
+///
+///  AFTER:
+///  ```mlir
+///  %extract = vector.extract %0 [2]
+///    : vector<4xf32> from vector<8x4xf32>
+///  %2 = vector.shape_cast %extract
+///    : vector<4xf32> to vector<4x1xf32>
+///  ```
+struct SwapUnitDimAddingShapeCastWithExtractOp final
+    : OpRewritePattern<vector::ExtractOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(vector::ExtractOp op,
+                                PatternRewriter &rewriter) const override {
+    auto shapeCastSource = op.getVector().getDefiningOp<vector::ShapeCastOp>();
+    if (!shapeCastSource) {
+      return failure();
+    }
+
+    VectorType sourceType = op.getSourceVectorType();
+
+    SmallVector<OpFoldResult> offsets = op.getMixedPosition();
+    SmallVector<OpFoldResult> newOffsets;
+    SmallVector<int64_t> newShape;
+    SmallVector<bool> newScalableDims;
+    for (auto [dim, isScalable, offset] : llvm::zip(
+             sourceType.getShape(), sourceType.getScalableDims(), offsets)) {
+      if (dim == 1 && !isScalable)
+        continue;
+
+      newShape.push_back(dim);
+      newScalableDims.push_back(isScalable);
+      newOffsets.push_back(offset);
+    }
+
+    Type newResultType = op.getResult().getType();
+    if (auto resultVectorType = dyn_cast<VectorType>(newResultType)) {
+      // Skip cast-like extract ops that are only removing unit dims already.
+      if (sourceType.getNumElements() == resultVectorType.getNumElements()) {
+        return rewriter.notifyMatchFailure(
+            op, "keeping unit dims for cast-like extract op");
+      }
+
+      bool keptAnyDim = false;
+      SmallVector<int64_t> newResultShape;
+      SmallVector<bool> newResultScalableDims;
+      for (auto [innerDim, isScalable] :
+           llvm::zip_equal(resultVectorType.getShape(),
+                           resultVectorType.getScalableDims())) {
+        if (innerDim == 1 && !isScalable)
+          continue;
+
+        keptAnyDim = true;
+        newResultShape.push_back(innerDim);
+        newResultScalableDims.push_back(isScalable);
+      }
+
+      if (!keptAnyDim) {
+        newResultShape.push_back(1);
+        newResultScalableDims.push_back(false);
+      }
+
+      newResultType =
+          VectorType::get(newResultShape, resultVectorType.getElementType(),
+                          newResultScalableDims);
+
+      newShape.append(newResultShape);
+      newScalableDims.append(newResultScalableDims);
+    }
+
+    auto sourceTypeWithoutUnitDims =
+        VectorType::get(newShape, sourceType.getElementType(), newScalableDims);
+    if (sourceTypeWithoutUnitDims != shapeCastSource.getSourceVectorType()) {
+      return failure();
+    }
+
+    Location loc = op.getLoc();
+    // Create the new extract op.
+    Value castedResult = rewriter.create<vector::ExtractOp>(
+        loc, shapeCastSource.getSource(), newOffsets);
+    // Restore the unit dims via shape cast if needed.
+    if (newResultType != op.getResult().getType()) {
+      castedResult = rewriter.create<vector::ShapeCastOp>(
+          loc, op.getResult().getType(), castedResult);
+    }
+    rewriter.replaceOp(op, castedResult);
+
+    return success();
+  }
+};
+
 /// Pattern to eliminate redundant zero-constants added to reduction operands.
 /// It's enough for there to be one initial zero value, so we can eliminate the
 /// extra ones that feed into `vector.reduction <add>`. These get created by the
@@ -2165,8 +2267,9 @@ void mlir::vector::populateDropUnitDimWithShapeCastPatterns(
     RewritePatternSet &patterns, PatternBenefit benefit) {
   patterns.add<DropUnitDimFromElementwiseOps, DropUnitDimsFromTransposeOp,
                ShapeCastOpFolder, DropUnitDimsFromScfForOp,
-               DropUnitDimsFromInsertStridedSliceOp>(patterns.getContext(),
-                                                     benefit);
+               DropUnitDimsFromInsertStridedSliceOp,
+               SwapUnitDimAddingShapeCastWithExtractOp>(patterns.getContext(),
+                                                        benefit);
 }
 
 void mlir::vector::populateBubbleVectorBitCastOpPatterns(
