@@ -105,8 +105,14 @@ void TransferOptimization::deadStoreOp(vector::TransferWriteOp write) {
                     << "\n");
   llvm::SmallVector<Operation *, 8> blockingAccesses;
   Operation *firstOverwriteCandidate = nullptr;
-  Value source =
+  std::optional<Value> maybeSource =
       memref::skipSubViewsAndCasts(cast<MemrefValue>(write.getSource()));
+  if (!maybeSource) {
+    LLVM_DEBUG(DBGS() << "Skipping! Could not find single memref source\n");
+    return;
+  }
+
+  Value source = maybeSource.value();
   llvm::SmallVector<Operation *, 32> users(source.getUsers().begin(),
                                            source.getUsers().end());
   llvm::SmallDenseSet<Operation *, 32> processed;
@@ -115,7 +121,8 @@ void TransferOptimization::deadStoreOp(vector::TransferWriteOp write) {
     // If the user has already been processed skip.
     if (!processed.insert(user).second)
       continue;
-    if (isa<memref::SubViewOp, memref::CastOp>(user)) {
+    if (isa<memref::SubViewOp, memref::CastOp, memref::ExpandShapeOp,
+            memref::CollapseShapeOp>(user)) {
       users.append(user->getUsers().begin(), user->getUsers().end());
       continue;
     }
@@ -192,8 +199,14 @@ void TransferOptimization::storeToLoadForwarding(vector::TransferReadOp read) {
                     << "\n");
   SmallVector<Operation *, 8> blockingWrites;
   vector::TransferWriteOp lastwrite = nullptr;
-  Value source =
+  std::optional<Value> maybeSource =
       memref::skipSubViewsAndCasts(cast<MemrefValue>(read.getSource()));
+  if (!maybeSource) {
+    LLVM_DEBUG(DBGS() << "Skipping! Could not find single memref source\n");
+    return;
+  }
+
+  Value source = maybeSource.value();
   llvm::SmallVector<Operation *, 32> users(source.getUsers().begin(),
                                            source.getUsers().end());
   llvm::SmallDenseSet<Operation *, 32> processed;

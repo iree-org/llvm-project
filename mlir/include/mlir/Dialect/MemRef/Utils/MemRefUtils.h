@@ -108,7 +108,7 @@ inline bool isSameViewOrTrivialAlias(MemrefValue a, MemrefValue b) {
 
 /// Walk up the source chain until something an op other than a `memref.subview`
 /// or `memref.cast` is found.
-MemrefValue skipSubViewsAndCasts(MemrefValue source);
+std::optional<MemrefValue> skipSubViewsAndCasts(MemrefValue source);
 
 } // namespace memref
 } // namespace mlir
