@@ -15,12 +15,12 @@
 #define LIB_MLIR_DIALECT_QUANT_IR_QUANTDIALECTBYTECODE_H
 
 namespace mlir::quant {
-class QuantDialect;
+class QuantizationDialect;
 
 namespace detail {
 /// Add the interfaces necessary for encoding the quantization dialect
 /// components in bytecode.
-void addBytecodeInterface(QuantDialect *dialect);
+void addBytecodeInterface(QuantizationDialect *dialect);
 } // namespace detail
 } // namespace mlir::quant
 
