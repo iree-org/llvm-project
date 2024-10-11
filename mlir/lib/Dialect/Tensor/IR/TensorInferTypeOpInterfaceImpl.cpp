@@ -162,6 +162,20 @@ struct ReifyExpandOrCollapseShapeOp
 
 namespace {
 
+struct ReifyExpandShapeOp
+    : public ReifyRankedShapedTypeOpInterface::ExternalModel<ReifyExpandShapeOp,
+                                                             ExpandShapeOp> {
+  LogicalResult
+  reifyResultShapes(Operation *op, OpBuilder &b,
+                    ReifiedRankedShapedTypeDims &reifyResultShapes) const {
+    auto expandShapeOp = cast<tensor::ExpandShapeOp>(op);
+    SmallVector<OpFoldResult> resultShapes =
+        expandShapeOp.getMixedOutputShape();
+    reifyResultShapes.emplace_back(std::move(resultShapes));
+    return success();
+  }
+};
+
 struct ReifyPadOp
     : public ReifyRankedShapedTypeOpInterface::ExternalModel<ReifyPadOp,
                                                              PadOp> {
@@ -202,8 +216,7 @@ struct ReifyPadOp
 void mlir::tensor::registerInferTypeOpInterfaceExternalModels(
     DialectRegistry &registry) {
   registry.addExtension(+[](MLIRContext *ctx, TensorDialect *dialect) {
-    ExpandShapeOp::attachInterface<
-        ReifyExpandOrCollapseShapeOp<tensor::ExpandShapeOp>>(*ctx);
+    ExpandShapeOp::attachInterface<ReifyExpandShapeOp>(*ctx);
     CollapseShapeOp::attachInterface<
         ReifyExpandOrCollapseShapeOp<tensor::CollapseShapeOp>>(*ctx);
     PadOp::attachInterface<ReifyPadOp>(*ctx);
