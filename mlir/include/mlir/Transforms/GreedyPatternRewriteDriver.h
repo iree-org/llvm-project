@@ -89,6 +89,8 @@ public:
   ///   excluded.
   GreedyRewriteStrictness strictMode = GreedyRewriteStrictness::AnyOp;
 
+  bool applyFold = true;
+
   /// An optional listener that should be notified about IR modifications.
   RewriterBase::Listener *listener = nullptr;
 };
