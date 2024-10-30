@@ -136,7 +136,9 @@ func.func @vectorize_nd_tensor_extract_transfer_read_basic(
 // CHECK:   %[[READ:.*]] = vector.transfer_read %[[ARG0]][%[[IDX1]], %[[IDX2]], %[[C0:.*]]], %[[CST_0]] {in_bounds = [true, true, true]} : tensor<3x3x3xf32>, vector<1x1x3xf32>
 // CHECK:   vector.transfer_write %[[READ]], %[[ARG1]][%[[C0]], %[[C0]], %[[C0]]] {in_bounds = [true, true, true]} : vector<1x1x3xf32>, tensor<1x1x3xf32>
 
-// Same as example above, but reading into a column tensor.
+// Same as example above, but reading into a column tensor. Note that after the
+// vectorizatoin, the `TransferOpReduceRank` will replace
+// `vector.transfer_read` with `tensor.extract -> scalar`.
 
 // TODO: Currently this fails to vectorise when the indices are non-constant.
 
@@ -160,10 +162,9 @@ func.func @vectorize_nd_tensor_extract_transfer_read_basic_column(
 // CHECK-LABEL:   func.func @vectorize_nd_tensor_extract_transfer_read_basic_column(
 // CHECK-SAME:      %[[INPUT:.*]]: tensor<3x3x3xf32>,
 // CHECK-SAME:      %[[OUTPUT:.*]]: tensor<3x1x1xf32>)
-// CHECK-DAG:        %[[C0:.*]] = arith.constant 0 : index
-// CHECK-DAG:        %[[CST_0:.*]] = arith.constant 0.000000e+00 : f32
-// CHECK:           %[[READ:.*]] = vector.transfer_read %[[INPUT]]{{\[}}%[[C0]], %[[C0]], %[[C0]]], %[[CST_0]] : tensor<3x3x3xf32>, vector<f32>
-// CHECK:           %[[BCAST:.*]] = vector.broadcast %[[READ]] : vector<f32> to vector<3x1x1xf32>
+// CHECK:           %[[C0:.*]] = arith.constant 0 : index
+// CHECK:           %[[EXTRACT:.*]] = tensor.extract %[[INPUT]]{{\[}}%[[C0]], %[[C0]], %[[C0]]] : tensor<3x3x3xf32>
+// CHECK:           %[[BCAST:.*]] = vector.broadcast %[[EXTRACT]] : f32 to vector<3x1x1xf32>
 // CHECK:           %[[RES:.*]] = vector.transfer_write %[[BCAST]], %[[OUTPUT]]{{\[}}%[[C0]], %[[C0]], %[[C0]]] {in_bounds = [true, true, true]} : vector<3x1x1xf32>, tensor<3x1x1xf32>
 // CHECK:           return %[[RES]] : tensor<3x1x1xf32>
 
