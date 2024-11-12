@@ -537,6 +537,10 @@ public:
                        ConversionPatternRewriter &rewriter) const {
     llvm_unreachable("unimplemented rewrite");
   }
+  virtual void rewrite(Operation *op, ArrayRef<ValueRange> operands,
+                       ConversionPatternRewriter &rewriter) const {
+    rewrite(op, getOneToOneAdaptorOperands(operands), rewriter);
+  }
 
   /// Hook for derived classes to implement combined matching and rewriting.
   virtual LogicalResult
@@ -546,6 +550,11 @@ public:
       return failure();
     rewrite(op, operands, rewriter);
     return success();
+  }
+  virtual LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<ValueRange> operands,
+                  ConversionPatternRewriter &rewriter) const {
+    return matchAndRewrite(op, getOneToOneAdaptorOperands(operands), rewriter);
   }
 
   /// Attempt to match and rewrite the IR root at the specified operation.
@@ -574,6 +583,15 @@ protected:
       : RewritePattern(std::forward<Args>(args)...),
         typeConverter(&typeConverter) {}
 
+  /// Given an array of value ranges, which are the inputs to a 1:N adaptor,
+  /// try to extract the single value of each range to construct a the inputs
+  /// for a 1:1 adaptor.
+  ///
+  /// This function produces a fatal error if at least one range has 0 or
+  /// more than 1 value: "pattern 'name' does not support 1:N conversion"
+  SmallVector<Value>
+  getOneToOneAdaptorOperands(ArrayRef<ValueRange> operands) const;
+
 protected:
   /// An optional type converter for use by this pattern.
   const TypeConverter *typeConverter = nullptr;
@@ -589,6 +607,8 @@ template <typename SourceOp>
 class OpConversionPattern : public ConversionPattern {
 public:
   using OpAdaptor = typename SourceOp::Adaptor;
+  using OneToNOpAdaptor =
+      typename SourceOp::template GenericAdaptor<ArrayRef<ValueRange>>;
 
   OpConversionPattern(MLIRContext *context, PatternBenefit benefit = 1)
       : ConversionPattern(SourceOp::getOperationName(), benefit, context) {}
@@ -607,11 +627,23 @@ public:
     auto sourceOp = cast<SourceOp>(op);
     rewrite(sourceOp, OpAdaptor(operands, sourceOp), rewriter);
   }
+  void rewrite(Operation *op, ArrayRef<ValueRange> operands,
+               ConversionPatternRewriter &rewriter) const final {
+    auto sourceOp = cast<SourceOp>(op);
+    rewrite(sourceOp, OneToNOpAdaptor(operands, sourceOp), rewriter);
+  }
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
     auto sourceOp = cast<SourceOp>(op);
     return matchAndRewrite(sourceOp, OpAdaptor(operands, sourceOp), rewriter);
+  }
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<ValueRange> operands,
+                  ConversionPatternRewriter &rewriter) const final {
+    auto sourceOp = cast<SourceOp>(op);
+    return matchAndRewrite(sourceOp, OneToNOpAdaptor(operands, sourceOp),
+                           rewriter);
   }
 
   /// Rewrite and Match methods that operate on the SourceOp type. These must be
@@ -623,6 +655,12 @@ public:
                        ConversionPatternRewriter &rewriter) const {
     llvm_unreachable("must override matchAndRewrite or a rewrite method");
   }
+  virtual void rewrite(SourceOp op, OneToNOpAdaptor adaptor,
+                       ConversionPatternRewriter &rewriter) const {
+    SmallVector<Value> oneToOneOperands =
+        getOneToOneAdaptorOperands(adaptor.getOperands());
+    rewrite(op, OpAdaptor(oneToOneOperands, adaptor), rewriter);
+  }
   virtual LogicalResult
   matchAndRewrite(SourceOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const {
@@ -630,6 +668,13 @@ public:
       return failure();
     rewrite(op, adaptor, rewriter);
     return success();
+  }
+  virtual LogicalResult
+  matchAndRewrite(SourceOp op, OneToNOpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const {
+    SmallVector<Value> oneToOneOperands =
+        getOneToOneAdaptorOperands(adaptor.getOperands());
+    return matchAndRewrite(op, OpAdaptor(oneToOneOperands, adaptor), rewriter);
   }
 
 private:
@@ -656,8 +701,17 @@ public:
                ConversionPatternRewriter &rewriter) const final {
     rewrite(cast<SourceOp>(op), operands, rewriter);
   }
+  void rewrite(Operation *op, ArrayRef<ValueRange> operands,
+               ConversionPatternRewriter &rewriter) const final {
+    rewrite(cast<SourceOp>(op), operands, rewriter);
+  }
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const final {
+    return matchAndRewrite(cast<SourceOp>(op), operands, rewriter);
+  }
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<ValueRange> operands,
                   ConversionPatternRewriter &rewriter) const final {
     return matchAndRewrite(cast<SourceOp>(op), operands, rewriter);
   }
@@ -668,6 +722,10 @@ public:
                        ConversionPatternRewriter &rewriter) const {
     llvm_unreachable("must override matchAndRewrite or a rewrite method");
   }
+  virtual void rewrite(SourceOp op, ArrayRef<ValueRange> operands,
+                       ConversionPatternRewriter &rewriter) const {
+    rewrite(op, getOneToOneAdaptorOperands(operands), rewriter);
+  }
   virtual LogicalResult
   matchAndRewrite(SourceOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const {
@@ -675,6 +733,11 @@ public:
       return failure();
     rewrite(op, operands, rewriter);
     return success();
+  }
+  virtual LogicalResult
+  matchAndRewrite(SourceOp op, ArrayRef<ValueRange> operands,
+                  ConversionPatternRewriter &rewriter) const {
+    return matchAndRewrite(op, getOneToOneAdaptorOperands(operands), rewriter);
   }
 
 private:
