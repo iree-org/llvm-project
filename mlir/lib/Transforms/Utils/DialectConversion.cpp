@@ -1824,8 +1824,8 @@ ConversionPattern::matchAndRewrite(Operation *op,
                                       op->getOperands(), remapped))) {
     return failure();
   }
-  SmallVector<ValueRange> remappedAsRange = llvm::map_to_vector(
-      remapped, [](const auto &v) -> ValueRange { return v; });
+  SmallVector<ValueRange> remappedAsRange = llvm::to_vector_of<ValueRange>(
+      remapped);
   return matchAndRewrite(op, remappedAsRange, dialectRewriter);
 }
 
