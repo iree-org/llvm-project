@@ -1185,7 +1185,7 @@ LogicalResult ConversionPatternRewriterImpl::remapValues(
       Value repl = mapping.lookupOrDefault(operand);
       SmallVector<Value> unpacked = unpackNTo1Materialization(repl);
       if (TypeRange(unpacked) == legalTypes) {
-        remapped.push_back(unpacked);
+        remapped.push_back(std::move(unpacked));
         continue;
       }
 
@@ -1824,8 +1824,8 @@ ConversionPattern::matchAndRewrite(Operation *op,
                                       op->getOperands(), remapped))) {
     return failure();
   }
-  SmallVector<ValueRange> remappedAsRange = llvm::to_vector_of<ValueRange>(
-      remapped);
+  SmallVector<ValueRange> remappedAsRange =
+      llvm::to_vector_of<ValueRange>(remapped);
   return matchAndRewrite(op, remappedAsRange, dialectRewriter);
 }
 
@@ -2053,19 +2053,19 @@ OperationLegalizer::legalizeWithFold(Operation *op,
   });
 
   // Try to fold the operation.
-  SmallVector<Value, 2> ValueRange;
+  SmallVector<Value, 2> replacementValues;
   rewriter.setInsertionPoint(op);
-  if (failed(rewriter.tryFold(op, ValueRange))) {
+  if (failed(rewriter.tryFold(op, replacementValues))) {
     LLVM_DEBUG(logFailure(rewriterImpl.logger, "unable to fold"));
     return failure();
   }
   // An empty list of replacement values indicates that the fold was in-place.
   // As the operation changed, a new legalization needs to be attempted.
-  if (ValueRange.empty())
+  if (replacementValues.empty())
     return legalize(op, rewriter);
 
   // Insert a replacement for 'op' with the folded replacement values.
-  rewriter.replaceOp(op, ValueRange);
+  rewriter.replaceOp(op, replacementValues);
 
   // Recursively legalize any new constant operations.
   for (unsigned i = curState.numRewrites, e = rewriterImpl.rewrites.size();
