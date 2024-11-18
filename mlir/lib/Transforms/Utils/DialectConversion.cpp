@@ -1152,11 +1152,18 @@ LogicalResult ConversionPatternRewriterImpl::remapValues(
     Type origType = operand.getType();
     Location operandLoc = inputLoc ? *inputLoc : operand.getLoc();
 
+    // Find the most recently mapped value. Unpack all temporary N:1
+    // materializations. Such conversions are a workaround around missing
+    // 1:N support in the ConversionValueMapping. (The conversion patterns
+    // already support 1:N replacements.)
+    Value repl = mapping.lookupOrDefault(operand);
+    SmallVector<Value> unpacked = unpackNTo1Materialization(repl);
+
     if (!currentTypeConverter) {
       // The current pattern does not have a type converter. I.e., it does not
       // distinguish between legal and illegal types. For each operand, simply
       // pass through the most recently mapped value.
-      remapped.push_back({mapping.lookupOrDefault(operand)});
+      remapped.push_back(std::move(unpacked));
       continue;
     }
 
@@ -1178,12 +1185,8 @@ LogicalResult ConversionPatternRewriterImpl::remapValues(
 
     if (legalTypes.size() != 1) {
       // TODO: This is a 1:N conversion. The conversion value mapping does not
-      // support such conversions yet. It stores the result of an argument
-      // materialization (i.e., a conversion back into a single SSA value)
-      // instead. Unpack such "workaround" materializations and hand the
-      // original replacement values to the adaptor.
-      Value repl = mapping.lookupOrDefault(operand);
-      SmallVector<Value> unpacked = unpackNTo1Materialization(repl);
+      // store such materializations yet. If the types of the most recently
+      // mapped values do not match, build a target materialization.
       if (TypeRange(unpacked) == legalTypes) {
         remapped.push_back(std::move(unpacked));
         continue;
@@ -1193,7 +1196,7 @@ LogicalResult ConversionPatternRewriterImpl::remapValues(
       // different legalized types.
       ValueRange targetMat = buildUnresolvedMaterialization(
           MaterializationKind::Target, computeInsertPoint(repl), operandLoc,
-          /*inputs=*/repl, /*outputType=*/legalTypes,
+          /*inputs=*/unpacked, /*outputType=*/legalTypes,
           /*originalType=*/origType, currentTypeConverter);
       remapped.push_back(targetMat);
       continue;
@@ -1211,7 +1214,7 @@ LogicalResult ConversionPatternRewriterImpl::remapValues(
       Value castValue = buildUnresolvedMaterialization(
           MaterializationKind::Target, computeInsertPoint(newOperand),
           operandLoc,
-          /*inputs=*/newOperand, /*outputType=*/desiredType,
+          /*inputs=*/unpacked, /*outputType=*/desiredType,
           /*originalType=*/origType, currentTypeConverter);
       mapping.map(newOperand, castValue);
       newOperand = castValue;
@@ -1447,7 +1450,10 @@ ConversionPatternRewriterImpl::unpackNTo1Materialization(Value value) {
 
   SmallVector<Value> result;
   for (Value v : castOp.getOperands()) {
-    // Keep unpacking if possible.
+    // Keep unpacking if possible. This is needed because during block
+    // signature conversions and 1:N op replacements, the driver may have
+    // inserted two materializations back-to-back: first an argument
+    // materialization, then a target materialization.
     llvm::append_range(result, unpackNTo1Materialization(v));
   }
   return result;
