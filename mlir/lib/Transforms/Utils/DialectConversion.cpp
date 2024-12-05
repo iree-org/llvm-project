@@ -2568,7 +2568,6 @@ legalizeUnresolvedMaterialization(RewriterBase &rewriter,
     if (newMaterialization) {
       assert(newMaterialization.getType() == outputType &&
              "materialization callback produced value of incorrect type");
-#endif // NDEBUG
       rewriter.replaceOp(op, newMaterialization);
       return success();
     }
