@@ -105,7 +105,7 @@ static cl::opt<bool> EnablePostMISchedLoadStoreClustering(
 static cl::opt<bool>
     EnableVLOptimizer("riscv-enable-vl-optimizer",
                       cl::desc("Enable the RISC-V VL Optimizer pass"),
-                      cl::init(true), cl::Hidden);
+                      cl::init(false), cl::Hidden);
 
 static cl::opt<bool> DisableVectorMaskMutation(
     "riscv-disable-vector-mask-mutation",
