@@ -376,10 +376,10 @@ func.func @vectorize_affine_apply(%arg0: tensor<5xf32>, %arg3: index) -> tensor<
 // CHECK-DAG: %[[C0:.*]] = arith.constant 0 : index
 // CHECK:   %[[EMPTY:.*]] = tensor.empty() : tensor<5xi32>
 // CHECK:   %[[BCAST:.*]] = vector.broadcast %[[ARG1]] : index to vector<5xindex>
-// CHECK:   %[[ADDI_1:.*]] = arith.addi %[[BCAST]], %[[CST]] : vector<5xindex>
-// CHECK:   %[[ADDI_2:.*]] = arith.addi %[[ADDI_1]], %[[CST_0]] : vector<5xindex>
-// CHECK:   %[[ADDI_3:.*]] = arith.addi %[[ADDI_1]], %[[ADDI_2]] : vector<5xindex>
-// CHECK:   %[[ADDI_4:.*]] = arith.addi %[[ADDI_3]], %[[CST]] : vector<5xindex>
+// CHECK:   %[[ADDI_1:.*]] = arith.addi %[[BCAST]], %[[CST]] overflow<nsw, nuw> : vector<5xindex>
+// CHECK:   %[[ADDI_2:.*]] = arith.addi %[[ADDI_1]], %[[CST_0]] overflow<nsw, nuw> : vector<5xindex>
+// CHECK:   %[[ADDI_3:.*]] = arith.addi %[[ADDI_1]], %[[ADDI_2]] overflow<nsw, nuw> : vector<5xindex>
+// CHECK:   %[[ADDI_4:.*]] = arith.addi %[[ADDI_3]], %[[CST]] overflow<nsw, nuw> : vector<5xindex>
 // CHECK:   %[[CAST:.*]] = arith.index_cast %[[ADDI_4]] : vector<5xindex> to vector<5xi32>
 // CHECK:   vector.transfer_write %[[CAST]], %[[EMPTY]][%[[C0:.*]]] {in_bounds = [true]} : vector<5xi32>, tensor<5xi32>
 

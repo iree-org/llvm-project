@@ -9,7 +9,7 @@ func.func @affine_vector_load(%arg0 : index) {
 // CHECK:       %[[buf:.*]] = memref.alloc
 // CHECK:       %[[a:.*]] = arith.addi %{{.*}}, %{{.*}} : index
 // CHECK-NEXT:  %[[c7:.*]] = arith.constant 7 : index
-// CHECK-NEXT:  %[[b:.*]] = arith.addi %[[a]], %[[c7]] : index
+// CHECK-NEXT:  %[[b:.*]] = arith.addi %[[a]], %[[c7]] overflow<nsw, nuw> : index
 // CHECK-NEXT:  vector.load %[[buf]][%[[b]]] : memref<100xf32>, vector<8xf32>
   return
 }
@@ -26,10 +26,10 @@ func.func @affine_vector_store(%arg0 : index) {
 // CHECK:       %[[buf:.*]] = memref.alloc
 // CHECK:       %[[val:.*]] = arith.constant dense
 // CHECK:       %[[c_1:.*]] = arith.constant -1 : index
-// CHECK-NEXT:  %[[a:.*]] = arith.muli %arg0, %[[c_1]] : index
-// CHECK-NEXT:  %[[b:.*]] = arith.addi %{{.*}}, %[[a]] : index
+// CHECK-NEXT:  %[[a:.*]] = arith.muli %arg0, %[[c_1]] overflow<nsw, nuw> : index
+// CHECK-NEXT:  %[[b:.*]] = arith.addi %{{.*}}, %[[a]] overflow<nsw, nuw> : index
 // CHECK-NEXT:  %[[c7:.*]] = arith.constant 7 : index
-// CHECK-NEXT:  %[[c:.*]] = arith.addi %[[b]], %[[c7]] : index
+// CHECK-NEXT:  %[[c:.*]] = arith.addi %[[b]], %[[c7]] overflow<nsw, nuw> : index
 // CHECK-NEXT:  vector.store %[[val]], %[[buf]][%[[c]]] : memref<100xf32>, vector<4xf32>
   return
 }

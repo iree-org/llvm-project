@@ -596,6 +596,18 @@ OpFoldResult arith::DivUIOp::fold(FoldAdaptor adaptor) {
                                                  return a.udiv(b);
                                                });
 
+  // divui (muli (a, v), v) -> a
+  if (auto muliOp = getLhs().getDefiningOp<arith::MulIOp>()) {
+    if (muliOp.hasNoUnsignedWrap()) {
+      if (getRhs() == muliOp.getRhs()) {
+        return muliOp.getLhs();
+      }
+      if (getRhs() == muliOp.getLhs()) {
+        return muliOp.getRhs();
+      }
+    }
+  }
+
   return div0 ? Attribute() : result;
 }
 
@@ -631,6 +643,18 @@ OpFoldResult arith::DivSIOp::fold(FoldAdaptor adaptor) {
         }
         return a.sdiv_ov(b, overflowOrDiv0);
       });
+
+  // divsi (muli (a, v), v) -> a
+  if (auto muliOp = getLhs().getDefiningOp<arith::MulIOp>()) {
+    if (muliOp.hasNoSignedWrap()) {
+      if (getRhs() == muliOp.getRhs()) {
+        return muliOp.getLhs();
+      }
+      if (getRhs() == muliOp.getLhs()) {
+        return muliOp.getRhs();
+      }
+    }
+  }
 
   return overflowOrDiv0 ? Attribute() : result;
 }
@@ -2341,12 +2365,12 @@ OpFoldResult arith::SelectOp::fold(FoldAdaptor adaptor) {
 
   // Constant-fold constant operands over non-splat constant condition.
   // select %cst_vec, %cst0, %cst1 => %cst2
-  if (auto cond =
-          llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getCondition())) {
-    if (auto lhs =
-            llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getTrueValue())) {
-      if (auto rhs =
-              llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getFalseValue())) {
+  if (auto cond = llvm::dyn_cast_if_present<DenseElementsAttr>(
+          adaptor.getCondition())) {
+    if (auto lhs = llvm::dyn_cast_if_present<DenseElementsAttr>(
+            adaptor.getTrueValue())) {
+      if (auto rhs = llvm::dyn_cast_if_present<DenseElementsAttr>(
+              adaptor.getFalseValue())) {
         SmallVector<Attribute> results;
         results.reserve(static_cast<size_t>(cond.getNumElements()));
         auto condVals = llvm::make_range(cond.value_begin<BoolAttr>(),
@@ -2614,7 +2638,7 @@ Value mlir::arith::getReductionOp(AtomicRMWKind op, OpBuilder &builder,
     return builder.create<arith::MaximumFOp>(loc, lhs, rhs);
   case AtomicRMWKind::minimumf:
     return builder.create<arith::MinimumFOp>(loc, lhs, rhs);
-   case AtomicRMWKind::maxnumf:
+  case AtomicRMWKind::maxnumf:
     return builder.create<arith::MaxNumFOp>(loc, lhs, rhs);
   case AtomicRMWKind::minnumf:
     return builder.create<arith::MinNumFOp>(loc, lhs, rhs);

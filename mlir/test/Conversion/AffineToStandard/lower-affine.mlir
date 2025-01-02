@@ -156,9 +156,9 @@ func.func private @get_idx() -> (index)
 // CHECK-NEXT:   %[[v0:.*]] = call @get_idx() : () -> index
 // CHECK-NEXT:   %[[c0:.*]] = arith.constant 0 : index
 // CHECK-NEXT:   %[[cm1:.*]] = arith.constant -1 : index
-// CHECK-NEXT:   %[[v1:.*]] = arith.muli %[[v0]], %[[cm1]] : index
+// CHECK-NEXT:   %[[v1:.*]] = arith.muli %[[v0]], %[[cm1]] overflow<nsw, nuw> : index
 // CHECK-NEXT:   %[[c20:.*]] = arith.constant 20 : index
-// CHECK-NEXT:   %[[v2:.*]] = arith.addi %[[v1]], %[[c20]] : index
+// CHECK-NEXT:   %[[v2:.*]] = arith.addi %[[v1]], %[[c20]] overflow<nsw, nuw> : index
 // CHECK-NEXT:   %[[v3:.*]] = arith.cmpi sge, %[[v2]], %[[c0]] : index
 // CHECK-NEXT:   if %[[v3]] {
 // CHECK-NEXT:     call @body(%[[v0:.*]]) : (index) -> ()
@@ -177,9 +177,9 @@ func.func @if_only() {
 // CHECK-NEXT:   %[[v0:.*]] = call @get_idx() : () -> index
 // CHECK-NEXT:   %[[c0:.*]] = arith.constant 0 : index
 // CHECK-NEXT:   %[[cm1:.*]] = arith.constant -1 : index
-// CHECK-NEXT:   %[[v1:.*]] = arith.muli %[[v0]], %[[cm1]] : index
+// CHECK-NEXT:   %[[v1:.*]] = arith.muli %[[v0]], %[[cm1]] overflow<nsw, nuw> : index
 // CHECK-NEXT:   %[[c20:.*]] = arith.constant 20 : index
-// CHECK-NEXT:   %[[v2:.*]] = arith.addi %[[v1]], %[[c20]] : index
+// CHECK-NEXT:   %[[v2:.*]] = arith.addi %[[v1]], %[[c20]] overflow<nsw, nuw> : index
 // CHECK-NEXT:   %[[v3:.*]] = arith.cmpi sge, %[[v2]], %[[c0]] : index
 // CHECK-NEXT:   if %[[v3]] {
 // CHECK-NEXT:     call @body(%[[v0:.*]]) : (index) -> ()
@@ -202,14 +202,14 @@ func.func @if_else() {
 // CHECK-NEXT:   %[[v0:.*]] = call @get_idx() : () -> index
 // CHECK-NEXT:   %[[c0:.*]] = arith.constant 0 : index
 // CHECK-NEXT:   %[[cm1:.*]] = arith.constant -1 : index
-// CHECK-NEXT:   %[[v1:.*]] = arith.muli %[[v0]], %[[cm1]] : index
+// CHECK-NEXT:   %[[v1:.*]] = arith.muli %[[v0]], %[[cm1]] overflow<nsw, nuw> : index
 // CHECK-NEXT:   %[[c20:.*]] = arith.constant 20 : index
-// CHECK-NEXT:   %[[v2:.*]] = arith.addi %[[v1]], %[[c20]] : index
+// CHECK-NEXT:   %[[v2:.*]] = arith.addi %[[v1]], %[[c20]] overflow<nsw, nuw> : index
 // CHECK-NEXT:   %[[v3:.*]] = arith.cmpi sge, %[[v2]], %[[c0]] : index
 // CHECK-NEXT:   if %[[v3]] {
 // CHECK-NEXT:     %[[c0_0:.*]] = arith.constant 0 : index
 // CHECK-NEXT:     %[[cm10:.*]] = arith.constant -10 : index
-// CHECK-NEXT:     %[[v4:.*]] = arith.addi %[[v0]], %[[cm10]] : index
+// CHECK-NEXT:     %[[v4:.*]] = arith.addi %[[v0]], %[[cm10]] overflow<nsw, nuw> : index
 // CHECK-NEXT:     %[[v5:.*]] = arith.cmpi sge, %[[v4]], %[[c0_0]] : index
 // CHECK-NEXT:     if %[[v5]] {
 // CHECK-NEXT:       call @body(%[[v0:.*]]) : (index) -> ()
@@ -217,7 +217,7 @@ func.func @if_else() {
 // CHECK-NEXT:   } else {
 // CHECK-NEXT:     %[[c0_0:.*]] = arith.constant 0 : index
 // CHECK-NEXT:     %[[cm10:.*]] = arith.constant -10 : index
-// CHECK-NEXT:     %{{.*}} = arith.addi %[[v0]], %[[cm10]] : index
+// CHECK-NEXT:     %{{.*}} = arith.addi %[[v0]], %[[cm10]] overflow<nsw, nuw> : index
 // CHECK-NEXT:     %{{.*}} = arith.cmpi sge, %{{.*}}, %[[c0_0]] : index
 // CHECK-NEXT:     if %{{.*}} {
 // CHECK-NEXT:       call @mid(%[[v0:.*]]) : (index) -> ()
@@ -245,7 +245,7 @@ func.func @nested_ifs() {
 // CHECK-NEXT:   %[[v0:.*]] = call @get_idx() : () -> index
 // CHECK-NEXT:   %[[c0:.*]] = arith.constant 0 : index
 // CHECK-NEXT:   %[[cm10:.*]] = arith.constant -10 : index
-// CHECK-NEXT:   %[[v1:.*]] = arith.addi %[[v0]], %[[cm10]] : index
+// CHECK-NEXT:   %[[v1:.*]] = arith.addi %[[v0]], %[[cm10]] overflow<nsw, nuw> : index
 // CHECK-NEXT:   %[[v2:.*]] = arith.cmpi sge, %[[v1]], %[[c0]] : index
 // CHECK-NEXT:   %[[v3:.*]] = scf.if %[[v2]] -> (i64) {
 // CHECK-NEXT:     scf.yield %[[c0_i64]] : i64
@@ -272,25 +272,25 @@ func.func @if_with_yield() -> (i64) {
 // CHECK-NEXT:   %[[v0:.*]] = call @get_idx() : () -> index
 // CHECK-NEXT:   %[[c0:.*]] = arith.constant 0 : index
 // CHECK-NEXT:   %[[cm1:.*]] = arith.constant -1 : index
-// CHECK-NEXT:   %[[v1:.*]] = arith.muli %[[v0]], %[[cm1]] : index
+// CHECK-NEXT:   %[[v1:.*]] = arith.muli %[[v0]], %[[cm1]] overflow<nsw, nuw> : index
 // CHECK-NEXT:   %[[v2:.*]] = arith.addi %[[v1]], %{{.*}} : index
 // CHECK-NEXT:   %[[c1:.*]] = arith.constant 1 : index
-// CHECK-NEXT:   %[[v3:.*]] = arith.addi %[[v2]], %[[c1]] : index
+// CHECK-NEXT:   %[[v3:.*]] = arith.addi %[[v2]], %[[c1]] overflow<nsw, nuw> : index
 // CHECK-NEXT:   %[[v4:.*]] = arith.cmpi sge, %[[v3]], %[[c0]] : index
 // CHECK-NEXT:   %[[cm1_0:.*]] = arith.constant -1 : index
-// CHECK-NEXT:   %[[v5:.*]] = arith.addi %{{.*}}, %[[cm1_0]] : index
+// CHECK-NEXT:   %[[v5:.*]] = arith.addi %{{.*}}, %[[cm1_0]] overflow<nsw, nuw> : index
 // CHECK-NEXT:   %[[v6:.*]] = arith.cmpi sge, %[[v5]], %[[c0]] : index
 // CHECK-NEXT:   %[[v7:.*]] = arith.andi %[[v4]], %[[v6]] : i1
 // CHECK-NEXT:   %[[cm1_1:.*]] = arith.constant -1 : index
-// CHECK-NEXT:   %[[v8:.*]] = arith.addi %{{.*}}, %[[cm1_1]] : index
+// CHECK-NEXT:   %[[v8:.*]] = arith.addi %{{.*}}, %[[cm1_1]] overflow<nsw, nuw> : index
 // CHECK-NEXT:   %[[v9:.*]] = arith.cmpi sge, %[[v8]], %[[c0]] : index
 // CHECK-NEXT:   %[[v10:.*]] = arith.andi %[[v7]], %[[v9]] : i1
 // CHECK-NEXT:   %[[cm1_2:.*]] = arith.constant -1 : index
-// CHECK-NEXT:   %[[v11:.*]] = arith.addi %{{.*}}, %[[cm1_2]] : index
+// CHECK-NEXT:   %[[v11:.*]] = arith.addi %{{.*}}, %[[cm1_2]] overflow<nsw, nuw> : index
 // CHECK-NEXT:   %[[v12:.*]] = arith.cmpi sge, %[[v11]], %[[c0]] : index
 // CHECK-NEXT:   %[[v13:.*]] = arith.andi %[[v10]], %[[v12]] : i1
 // CHECK-NEXT:   %[[cm42:.*]] = arith.constant -42 : index
-// CHECK-NEXT:   %[[v14:.*]] = arith.addi %{{.*}}, %[[cm42]] : index
+// CHECK-NEXT:   %[[v14:.*]] = arith.addi %{{.*}}, %[[cm42]] overflow<nsw, nuw> : index
 // CHECK-NEXT:   %[[v15:.*]] = arith.cmpi eq, %[[v14]], %[[c0]] : index
 // CHECK-NEXT:   %[[v16:.*]] = arith.andi %[[v13]], %[[v15]] : i1
 // CHECK-NEXT:   if %[[v16]] {
@@ -316,9 +316,9 @@ func.func @if_for() {
   %i = call @get_idx() : () -> (index)
 // CHECK-NEXT:   %[[c0:.*]] = arith.constant 0 : index
 // CHECK-NEXT:   %[[cm1:.*]] = arith.constant -1 : index
-// CHECK-NEXT:   %[[v1:.*]] = arith.muli %[[v0]], %[[cm1]] : index
+// CHECK-NEXT:   %[[v1:.*]] = arith.muli %[[v0]], %[[cm1]] overflow<nsw, nuw> : index
 // CHECK-NEXT:   %[[c20:.*]] = arith.constant 20 : index
-// CHECK-NEXT:   %[[v2:.*]] = arith.addi %[[v1]], %[[c20]] : index
+// CHECK-NEXT:   %[[v2:.*]] = arith.addi %[[v1]], %[[c20]] overflow<nsw, nuw> : index
 // CHECK-NEXT:   %[[v3:.*]] = arith.cmpi sge, %[[v2]], %[[c0]] : index
 // CHECK-NEXT:   if %[[v3]] {
 // CHECK-NEXT:     %[[c0:.*]]{{.*}} = arith.constant 0 : index
@@ -327,7 +327,7 @@ func.func @if_for() {
 // CHECK-NEXT:     for %{{.*}} = %[[c0:.*]]{{.*}} to %[[c42:.*]]{{.*}} step %[[c1:.*]]{{.*}} {
 // CHECK-NEXT:       %[[c0_:.*]]{{.*}} = arith.constant 0 : index
 // CHECK-NEXT:       %[[cm10:.*]] = arith.constant -10 : index
-// CHECK-NEXT:       %[[v4:.*]] = arith.addi %{{.*}}, %[[cm10]] : index
+// CHECK-NEXT:       %[[v4:.*]] = arith.addi %{{.*}}, %[[cm10]] overflow<nsw, nuw> : index
 // CHECK-NEXT:       %[[v5:.*]] = arith.cmpi sge, %[[v4]], %[[c0_:.*]]{{.*}} : index
 // CHECK-NEXT:       if %[[v5]] {
 // CHECK-NEXT:         call @body2(%[[v0]], %{{.*}}) : (index, index) -> ()
@@ -371,11 +371,11 @@ func.func @if_for() {
 // CHECK-NEXT:   %[[c1:.*]] = arith.constant 1 : index
 // CHECK-NEXT:   for %{{.*}} = %[[c0]] to %[[c42]] step %[[c1]] {
 // CHECK-NEXT:     %[[cm1:.*]] = arith.constant -1 : index
-// CHECK-NEXT:     %[[mul0:.*]] = arith.muli %{{.*}}, %[[cm1]] : index
-// CHECK-NEXT:     %[[add0:.*]] = arith.addi %[[mul0]], %{{.*}} : index
+// CHECK-NEXT:     %[[mul0:.*]] = arith.muli %{{.*}}, %[[cm1]] overflow<nsw, nuw> : index
+// CHECK-NEXT:     %[[add0:.*]] = arith.addi %[[mul0]], %{{.*}} overflow<nsw, nuw> : index
 // CHECK-NEXT:     %[[max:.*]] = arith.maxsi %{{.*}}, %[[add0]] : index
 // CHECK-NEXT:     %[[c10:.*]] = arith.constant 10 : index
-// CHECK-NEXT:     %[[add1:.*]] = arith.addi %{{.*}}, %[[c10]] : index
+// CHECK-NEXT:     %[[add1:.*]] = arith.addi %{{.*}}, %[[c10]] overflow<nsw, nuw> : index
 // CHECK-NEXT:     %[[min:.*]] = arith.minsi %{{.*}}, %[[add1]] : index
 // CHECK-NEXT:     %[[c1_0:.*]] = arith.constant 1 : index
 // CHECK-NEXT:     for %{{.*}} = %[[max]] to %[[min]] step %[[c1_0]] {
@@ -442,29 +442,29 @@ func.func @affine_applies(%arg0 : index) {
   %102 = arith.constant 102 : index
   %copy = affine.apply #map2(%zero)
 
-// CHECK-NEXT: %[[v0:.*]] = arith.addi %[[c0]], %[[c0]] : index
+// CHECK-NEXT: %[[v0:.*]] = arith.addi %[[c0]], %[[c0]] overflow<nsw, nuw> : index
 // CHECK-NEXT: %[[c1:.*]] = arith.constant 1 : index
-// CHECK-NEXT: %[[v1:.*]] = arith.addi %[[v0]], %[[c1]] : index
+// CHECK-NEXT: %[[v1:.*]] = arith.addi %[[v0]], %[[c1]] overflow<nsw, nuw> : index
   %one = affine.apply #map3(%symbZero)[%zero]
 
 // CHECK-NEXT: %[[c2:.*]] = arith.constant 2 : index
-// CHECK-NEXT: %[[v2:.*]] = arith.muli %arg0, %[[c2]] : index
-// CHECK-NEXT: %[[v3:.*]] = arith.addi %arg0, %[[v2]] : index
+// CHECK-NEXT: %[[v2:.*]] = arith.muli %arg0, %[[c2]] overflow<nsw, nuw> : index
+// CHECK-NEXT: %[[v3:.*]] = arith.addi %arg0, %[[v2]] overflow<nsw, nuw> : index
 // CHECK-NEXT: %[[c3:.*]] = arith.constant 3 : index
-// CHECK-NEXT: %[[v4:.*]] = arith.muli %arg0, %[[c3]] : index
-// CHECK-NEXT: %[[v5:.*]] = arith.addi %[[v3]], %[[v4]] : index
+// CHECK-NEXT: %[[v4:.*]] = arith.muli %arg0, %[[c3]] overflow<nsw, nuw> : index
+// CHECK-NEXT: %[[v5:.*]] = arith.addi %[[v3]], %[[v4]] overflow<nsw, nuw> : index
 // CHECK-NEXT: %[[c4:.*]] = arith.constant 4 : index
-// CHECK-NEXT: %[[v6:.*]] = arith.muli %arg0, %[[c4]] : index
-// CHECK-NEXT: %[[v7:.*]] = arith.addi %[[v5]], %[[v6]] : index
+// CHECK-NEXT: %[[v6:.*]] = arith.muli %arg0, %[[c4]] overflow<nsw, nuw> : index
+// CHECK-NEXT: %[[v7:.*]] = arith.addi %[[v5]], %[[v6]] overflow<nsw, nuw> : index
 // CHECK-NEXT: %[[c5:.*]] = arith.constant 5 : index
-// CHECK-NEXT: %[[v8:.*]] = arith.muli %arg0, %[[c5]] : index
-// CHECK-NEXT: %[[v9:.*]] = arith.addi %[[v7]], %[[v8]] : index
+// CHECK-NEXT: %[[v8:.*]] = arith.muli %arg0, %[[c5]] overflow<nsw, nuw> : index
+// CHECK-NEXT: %[[v9:.*]] = arith.addi %[[v7]], %[[v8]] overflow<nsw, nuw> : index
 // CHECK-NEXT: %[[c6:.*]] = arith.constant 6 : index
-// CHECK-NEXT: %[[v10:.*]] = arith.muli %arg0, %[[c6]] : index
-// CHECK-NEXT: %[[v11:.*]] = arith.addi %[[v9]], %[[v10]] : index
+// CHECK-NEXT: %[[v10:.*]] = arith.muli %arg0, %[[c6]] overflow<nsw, nuw> : index
+// CHECK-NEXT: %[[v11:.*]] = arith.addi %[[v9]], %[[v10]] overflow<nsw, nuw> : index
 // CHECK-NEXT: %[[c7:.*]] = arith.constant 7 : index
-// CHECK-NEXT: %[[v12:.*]] = arith.muli %arg0, %[[c7]] : index
-// CHECK-NEXT: %[[v13:.*]] = arith.addi %[[v11]], %[[v12]] : index
+// CHECK-NEXT: %[[v12:.*]] = arith.muli %arg0, %[[c7]] overflow<nsw, nuw> : index
+// CHECK-NEXT: %[[v13:.*]] = arith.addi %[[v11]], %[[v12]] overflow<nsw, nuw> : index
   %four = affine.apply #map4(%arg0, %arg0, %arg0, %arg0)[%arg0, %arg0, %arg0]
   return
 }
@@ -498,7 +498,7 @@ func.func @affine_apply_mod(%arg0 : index) -> (index) {
 // CHECK-NEXT: %[[v0:.*]] = arith.remsi %{{.*}}, %[[c42]] : index
 // CHECK-NEXT: %[[c0:.*]] = arith.constant 0 : index
 // CHECK-NEXT: %[[v1:.*]] = arith.cmpi slt, %[[v0]], %[[c0]] : index
-// CHECK-NEXT: %[[v2:.*]] = arith.addi %[[v0]], %[[c42]] : index
+// CHECK-NEXT: %[[v2:.*]] = arith.addi %[[v0]], %[[c42]] overflow<nsw, nuw> : index
 // CHECK-NEXT: %[[v3:.*]] = arith.select %[[v1]], %[[v2]], %[[v0]] : index
   %0 = affine.apply #map_mod (%arg0)
   return %0 : index
@@ -509,7 +509,7 @@ func.func @affine_apply_mod_dynamic_divisor(%arg0 : index, %arg1 : index) -> (in
 // CHECK-NEXT: %[[v0:.*]] = arith.remsi %{{.*}}, %arg1 : index
 // CHECK-NEXT: %[[c0:.*]] = arith.constant 0 : index
 // CHECK-NEXT: %[[v1:.*]] = arith.cmpi slt, %[[v0]], %[[c0]] : index
-// CHECK-NEXT: %[[v2:.*]] = arith.addi %[[v0]], %arg1 : index
+// CHECK-NEXT: %[[v2:.*]] = arith.addi %[[v0]], %arg1 overflow<nsw, nuw> : index
 // CHECK-NEXT: %[[v3:.*]] = arith.select %[[v1]], %[[v2]], %[[v0]] : index
   %0 = affine.apply #map_mod_dynamic_divisor (%arg0)[%arg1]
   return %0 : index
@@ -567,7 +567,7 @@ func.func @affine_apply_ceildiv(%arg0 : index) -> (index) {
 // CHECK-NEXT:  %[[v3:.*]] = arith.select %[[v0]], %[[v1]], %[[v2]] : index
 // CHECK-NEXT:  %[[v4:.*]] = arith.divsi %[[v3]], %[[c42]] : index
 // CHECK-NEXT:  %[[v5:.*]] = arith.subi %[[c0]], %[[v4]] : index
-// CHECK-NEXT:  %[[v6:.*]] = arith.addi %[[v4]], %[[c1]] : index
+// CHECK-NEXT:  %[[v6:.*]] = arith.addi %[[v4]], %[[c1]] overflow<nsw, nuw> : index
 // CHECK-NEXT:  %[[v7:.*]] = arith.select %[[v0]], %[[v5]], %[[v6]] : index
   %0 = affine.apply #map_ceildiv (%arg0)
   return %0 : index
@@ -583,7 +583,7 @@ func.func @affine_apply_ceildiv_dynamic_divisor(%arg0 : index, %arg1 : index) ->
 // CHECK-NEXT:  %[[v3:.*]] = arith.select %[[v0]], %[[v1]], %[[v2]] : index
 // CHECK-NEXT:  %[[v4:.*]] = arith.divsi %[[v3]], %arg1 : index
 // CHECK-NEXT:  %[[v5:.*]] = arith.subi %[[c0]], %[[v4]] : index
-// CHECK-NEXT:  %[[v6:.*]] = arith.addi %[[v4]], %[[c1]] : index
+// CHECK-NEXT:  %[[v6:.*]] = arith.addi %[[v4]], %[[c1]] overflow<nsw, nuw> : index
 // CHECK-NEXT:  %[[v7:.*]] = arith.select %[[v0]], %[[v5]], %[[v6]] : index
   %0 = affine.apply #map_ceildiv_dynamic_divisor (%arg0)[%arg1]
   return %0 : index
@@ -597,7 +597,7 @@ func.func @affine_load(%arg0 : index) {
   }
 // CHECK:       %[[a:.*]] = arith.addi %{{.*}}, %{{.*}} : index
 // CHECK-NEXT:  %[[c7:.*]] = arith.constant 7 : index
-// CHECK-NEXT:  %[[b:.*]] = arith.addi %[[a]], %[[c7]] : index
+// CHECK-NEXT:  %[[b:.*]] = arith.addi %[[a]], %[[c7]] overflow<nsw, nuw> : index
 // CHECK-NEXT:  %{{.*}} = memref.load %[[v0:.*]][%[[b]]] : memref<10xf32>
   return
 }
@@ -610,10 +610,10 @@ func.func @affine_store(%arg0 : index) {
     affine.store %1, %0[%i0 - symbol(%arg0) + 7] : memref<10xf32>
   }
 // CHECK:       %[[cm1:.*]] = arith.constant -1 : index
-// CHECK-NEXT:  %[[a:.*]] = arith.muli %{{.*}}, %[[cm1]] : index
-// CHECK-NEXT:  %[[b:.*]] = arith.addi %{{.*}}, %[[a]] : index
+// CHECK-NEXT:  %[[a:.*]] = arith.muli %{{.*}}, %[[cm1]] overflow<nsw, nuw> : index
+// CHECK-NEXT:  %[[b:.*]] = arith.addi %{{.*}}, %[[a]] overflow<nsw, nuw> : index
 // CHECK-NEXT:  %[[c7:.*]] = arith.constant 7 : index
-// CHECK-NEXT:  %[[c:.*]] = arith.addi %[[b]], %[[c7]] : index
+// CHECK-NEXT:  %[[c:.*]] = arith.addi %[[b]], %[[c7]] overflow<nsw, nuw> : index
 // CHECK-NEXT:  store %{{.*}}, %{{.*}}[%[[c]]] : memref<10xf32>
   return
 }
@@ -635,7 +635,7 @@ func.func @affine_prefetch(%arg0 : index) {
   }
 // CHECK:       %[[a:.*]] = arith.addi %{{.*}}, %{{.*}} : index
 // CHECK-NEXT:  %[[c7:.*]] = arith.constant 7 : index
-// CHECK-NEXT:  %[[b:.*]] = arith.addi %[[a]], %[[c7]] : index
+// CHECK-NEXT:  %[[b:.*]] = arith.addi %[[a]], %[[c7]] overflow<nsw, nuw> : index
 // CHECK-NEXT:  memref.prefetch %[[v0:.*]][%[[b]]], read, locality<3>, data : memref<10xf32>
   return
 }
@@ -652,9 +652,9 @@ func.func @affine_dma_start(%arg0 : index) {
         : memref<100xf32>, memref<100xf32, 2>, memref<1xi32>
   }
 // CHECK:       %[[c7:.*]] = arith.constant 7 : index
-// CHECK-NEXT:  %[[a:.*]] = arith.addi %{{.*}}, %[[c7]] : index
+// CHECK-NEXT:  %[[a:.*]] = arith.addi %{{.*}}, %[[c7]] overflow<nsw, nuw> : index
 // CHECK-NEXT:  %[[c11:.*]] = arith.constant 11 : index
-// CHECK-NEXT:  %[[b:.*]] = arith.addi %{{.*}}, %[[c11]] : index
+// CHECK-NEXT:  %[[b:.*]] = arith.addi %{{.*}}, %[[c11]] overflow<nsw, nuw> : index
 // CHECK-NEXT:  dma_start %{{.*}}[%[[a]]], %{{.*}}[%[[b]]], %{{.*}}, %{{.*}}[%{{.*}}] : memref<100xf32>, memref<100xf32, 2>, memref<1xi32>
   return
 }
@@ -666,9 +666,9 @@ func.func @affine_dma_wait(%arg0 : index) {
   affine.for %i0 = 0 to 10 {
     affine.dma_wait %2[%i0 + %arg0 + 17], %c64 : memref<1xi32>
   }
-// CHECK:       %[[a:.*]] = arith.addi %{{.*}}, %arg0 : index
+// CHECK:       %[[a:.*]] = arith.addi %{{.*}}, %arg0 overflow<nsw, nuw> : index
 // CHECK-NEXT:  %[[c17:.*]] = arith.constant 17 : index
-// CHECK-NEXT:  %[[b:.*]] = arith.addi %[[a]], %[[c17]] : index
+// CHECK-NEXT:  %[[b:.*]] = arith.addi %[[a]], %[[c17]] overflow<nsw, nuw> : index
 // CHECK-NEXT:  dma_wait %{{.*}}[%[[b]]], %{{.*}} : memref<1xi32>
   return
 }
