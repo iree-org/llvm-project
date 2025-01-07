@@ -9,8 +9,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <nanobind/nanobind.h>
+
 #include "Standalone-c/Dialects.h"
-#include "mlir/Bindings/Python/Nanobind.h"
 #include "mlir/Bindings/Python/NanobindAdaptors.h"
 
 namespace nb = nanobind;
