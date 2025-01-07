@@ -784,9 +784,11 @@ define void @copysign_v6bf16(ptr %x, ptr %y) {
 ; CHECK-NEXT:    vle16.v v8, (a1)
 ; CHECK-NEXT:    vle16.v v9, (a0)
 ; CHECK-NEXT:    lui a1, 8
+; CHECK-NEXT:    vsetivli zero, 8, e16, m1, ta, ma
 ; CHECK-NEXT:    vand.vx v8, v8, a1
 ; CHECK-NEXT:    addi a1, a1, -1
 ; CHECK-NEXT:    vand.vx v9, v9, a1
+; CHECK-NEXT:    vsetivli zero, 6, e16, m1, ta, ma
 ; CHECK-NEXT:    vor.vv v8, v9, v8
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
@@ -842,9 +844,11 @@ define void @copysign_v6f16(ptr %x, ptr %y) {
 ; ZVFHMIN-NEXT:    vle16.v v8, (a1)
 ; ZVFHMIN-NEXT:    vle16.v v9, (a0)
 ; ZVFHMIN-NEXT:    lui a1, 8
+; ZVFHMIN-NEXT:    vsetivli zero, 8, e16, m1, ta, ma
 ; ZVFHMIN-NEXT:    vand.vx v8, v8, a1
 ; ZVFHMIN-NEXT:    addi a1, a1, -1
 ; ZVFHMIN-NEXT:    vand.vx v9, v9, a1
+; ZVFHMIN-NEXT:    vsetivli zero, 6, e16, m1, ta, ma
 ; ZVFHMIN-NEXT:    vor.vv v8, v9, v8
 ; ZVFHMIN-NEXT:    vse16.v v8, (a0)
 ; ZVFHMIN-NEXT:    ret
@@ -916,10 +920,12 @@ define void @copysign_vf_v6bf16(ptr %x, bfloat %y) {
 ; CHECK-NEXT:    vsetivli zero, 6, e16, m1, ta, ma
 ; CHECK-NEXT:    vle16.v v8, (a0)
 ; CHECK-NEXT:    lui a2, 8
+; CHECK-NEXT:    vsetivli zero, 8, e16, m1, ta, ma
 ; CHECK-NEXT:    vmv.v.x v9, a1
 ; CHECK-NEXT:    addi a1, a2, -1
 ; CHECK-NEXT:    vand.vx v8, v8, a1
 ; CHECK-NEXT:    vand.vx v9, v9, a2
+; CHECK-NEXT:    vsetivli zero, 6, e16, m1, ta, ma
 ; CHECK-NEXT:    vor.vv v8, v8, v9
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
@@ -976,10 +982,12 @@ define void @copysign_vf_v6f16(ptr %x, half %y) {
 ; ZVFHMIN-NEXT:    vsetivli zero, 6, e16, m1, ta, ma
 ; ZVFHMIN-NEXT:    vle16.v v8, (a0)
 ; ZVFHMIN-NEXT:    lui a2, 8
+; ZVFHMIN-NEXT:    vsetivli zero, 8, e16, m1, ta, ma
 ; ZVFHMIN-NEXT:    vmv.v.x v9, a1
 ; ZVFHMIN-NEXT:    addi a1, a2, -1
 ; ZVFHMIN-NEXT:    vand.vx v8, v8, a1
 ; ZVFHMIN-NEXT:    vand.vx v9, v9, a2
+; ZVFHMIN-NEXT:    vsetivli zero, 6, e16, m1, ta, ma
 ; ZVFHMIN-NEXT:    vor.vv v8, v8, v9
 ; ZVFHMIN-NEXT:    vse16.v v8, (a0)
 ; ZVFHMIN-NEXT:    ret
@@ -1053,9 +1061,11 @@ define void @copysign_neg_v6bf16(ptr %x, ptr %y) {
 ; CHECK-NEXT:    vle16.v v9, (a0)
 ; CHECK-NEXT:    lui a1, 8
 ; CHECK-NEXT:    addi a2, a1, -1
+; CHECK-NEXT:    vsetivli zero, 8, e16, m1, ta, ma
 ; CHECK-NEXT:    vxor.vx v8, v8, a1
 ; CHECK-NEXT:    vand.vx v9, v9, a2
 ; CHECK-NEXT:    vand.vx v8, v8, a1
+; CHECK-NEXT:    vsetivli zero, 6, e16, m1, ta, ma
 ; CHECK-NEXT:    vor.vv v8, v9, v8
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
@@ -1115,9 +1125,11 @@ define void @copysign_neg_v6f16(ptr %x, ptr %y) {
 ; ZVFHMIN-NEXT:    vle16.v v9, (a0)
 ; ZVFHMIN-NEXT:    lui a1, 8
 ; ZVFHMIN-NEXT:    addi a2, a1, -1
+; ZVFHMIN-NEXT:    vsetivli zero, 8, e16, m1, ta, ma
 ; ZVFHMIN-NEXT:    vxor.vx v8, v8, a1
 ; ZVFHMIN-NEXT:    vand.vx v9, v9, a2
 ; ZVFHMIN-NEXT:    vand.vx v8, v8, a1
+; ZVFHMIN-NEXT:    vsetivli zero, 6, e16, m1, ta, ma
 ; ZVFHMIN-NEXT:    vor.vv v8, v9, v8
 ; ZVFHMIN-NEXT:    vse16.v v8, (a0)
 ; ZVFHMIN-NEXT:    ret
@@ -1195,12 +1207,12 @@ define void @copysign_neg_trunc_v3bf16_v3f32(ptr %x, ptr %y) {
 ; CHECK-NEXT:    vle32.v v9, (a1)
 ; CHECK-NEXT:    lui a1, 8
 ; CHECK-NEXT:    addi a2, a1, -1
-; CHECK-NEXT:    vand.vx v8, v8, a2
 ; CHECK-NEXT:    vsetivli zero, 4, e16, mf2, ta, ma
+; CHECK-NEXT:    vand.vx v8, v8, a2
 ; CHECK-NEXT:    vfncvtbf16.f.f.w v10, v9
-; CHECK-NEXT:    vsetivli zero, 3, e16, mf2, ta, ma
 ; CHECK-NEXT:    vxor.vx v9, v10, a1
 ; CHECK-NEXT:    vand.vx v9, v9, a1
+; CHECK-NEXT:    vsetivli zero, 3, e16, mf2, ta, ma
 ; CHECK-NEXT:    vor.vv v8, v8, v9
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
@@ -1265,10 +1277,12 @@ define void @copysign_neg_trunc_v3f16_v3f32(ptr %x, ptr %y) {
 ; ZVFHMIN-NEXT:    vle32.v v9, (a1)
 ; ZVFHMIN-NEXT:    lui a1, 8
 ; ZVFHMIN-NEXT:    addi a2, a1, -1
+; ZVFHMIN-NEXT:    vsetivli zero, 4, e16, mf2, ta, ma
 ; ZVFHMIN-NEXT:    vand.vx v8, v8, a2
 ; ZVFHMIN-NEXT:    vfncvt.f.f.w v10, v9
 ; ZVFHMIN-NEXT:    vxor.vx v9, v10, a1
 ; ZVFHMIN-NEXT:    vand.vx v9, v9, a1
+; ZVFHMIN-NEXT:    vsetivli zero, 3, e16, mf2, ta, ma
 ; ZVFHMIN-NEXT:    vor.vv v8, v8, v9
 ; ZVFHMIN-NEXT:    vse16.v v8, (a0)
 ; ZVFHMIN-NEXT:    ret
