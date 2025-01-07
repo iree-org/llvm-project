@@ -448,7 +448,6 @@ declare_mlir_python_extension(MLIRPythonExtension.Core
   MODULE_NAME _mlir
   ADD_TO_PARENT MLIRPythonSources.Core
   ROOT_DIR "${PYTHON_SOURCE_DIR}"
-  PYTHON_BINDINGS_LIBRARY nanobind
   SOURCES
     MainModule.cpp
     IRAffine.cpp
@@ -464,7 +463,7 @@ declare_mlir_python_extension(MLIRPythonExtension.Core
     Globals.h
     IRModule.h
     Pass.h
-    NanobindUtils.h
+    PybindUtils.h
     Rewrite.h
   PRIVATE_LINK_LIBS
     LLVMSupport
@@ -476,9 +475,6 @@ declare_mlir_python_extension(MLIRPythonExtension.Core
     # Dialects
     MLIRCAPIFunc
 )
-if (LLVM_COMPILER_IS_GCC_COMPATIBLE OR CLANG_CL)
-set_target_properties(MLIRPythonExtension.Core PROPERTIES INTERFACE_COMPILE_OPTIONS "-Wno-cast-qual;-Wno-zero-length-array;-Wno-extra-semi;-Wno-nested-anon-types;-Wno-pedantic")
-endif()
 
 # This extension exposes an API to register all dialects, extensions, and passes
 # packaged in upstream MLIR and it is used for the upstream "mlir" Python
@@ -735,9 +731,6 @@ if(MLIR_INCLUDE_TESTS)
     EMBED_CAPI_LINK_LIBS
       MLIRCAPIPythonTestDialect
   )
-  if (LLVM_COMPILER_IS_GCC_COMPATIBLE OR CLANG_CL)
-    set_target_properties(MLIRPythonTestSources.PythonTestExtensionNanobind PROPERTIES INTERFACE_COMPILE_OPTIONS "-Wno-cast-qual;-Wno-zero-length-array;-Wno-extra-semi;-Wno-nested-anon-types;-Wno-pedantic")
-  endif()
 endif()
 
 ################################################################################
