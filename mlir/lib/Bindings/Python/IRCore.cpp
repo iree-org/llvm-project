@@ -283,8 +283,8 @@ struct PyAttrBuilderMap {
   static void bind(py::module &m) {
     py::class_<PyAttrBuilderMap>(m, "AttrBuilder", py::module_local())
         .def_static("contains", &PyAttrBuilderMap::dunderContains)
-        .def_static("get", &PyAttrBuilderMap::dunderGetItemNamed)
-        .def_static("insert", &PyAttrBuilderMap::dunderSetItemNamed,
+        .def_static("get", &PyAttrBuilderMap::dundeGetItemNamed)
+        .def_static("insert", &PyAttrBuilderMap::dundeSetItemNamed,
                     "attribute_kind"_a, "attr_builder"_a, "replace"_a = false,
                     "Register an attribute builder for building MLIR "
                     "attributes from python values.");
