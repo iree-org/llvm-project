@@ -111,12 +111,7 @@ public:
   // - 0 represents base GPU model,
   // - non-zero value identifies particular architecture-accelerated variant.
   bool hasAAFeatures() const { return getFullSmVersion() % 10; }
-
-  // If the user did not provide a target we default to the `sm_30` target.
-  std::string getTargetName() const {
-    return TargetName.empty() ? "sm_30" : TargetName;
-  }
-  bool hasTargetName() const { return !TargetName.empty(); }
+  std::string getTargetName() const { return TargetName; }
 
   bool hasNativeBF16Support(int Opcode) const;
 
