@@ -222,8 +222,7 @@ bool NVVMReflect::runOnFunction(Function &F) {
 
 NVVMReflectPass::NVVMReflectPass() {
   // Get the CPU string from the command line if not provided.
-  std::string MCPU = codegen::getMCPU();
-  StringRef SM = MCPU;
+  StringRef SM = codegen::getMCPU();
   if (!SM.consume_front("sm_") || SM.consumeInteger(10, SmVersion))
     SmVersion = 0;
 }
