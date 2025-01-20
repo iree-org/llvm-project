@@ -45,7 +45,6 @@ def Tosa_Dialect : Dialect {
   let cppNamespace = "mlir::tosa";
   let hasConstantMaterializer = 1;
   let useDefaultAttributePrinterParser = 1;
-  let useDefaultTypePrinterParser = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -219,20 +218,11 @@ def TosaElementwiseOperator : NativeOpTrait<"TosaElementwiseOperator"> {
 }
 
 //===----------------------------------------------------------------------===//
-// TOSA Operator Trait.
-//===----------------------------------------------------------------------===//
-// Op operands with TOSA shape types must be compile time resolvable
-def TosaResolvableShapeOperands : NativeOpTrait<"TosaResolvableShapeOperands"> {
-  let cppNamespace = "mlir::OpTrait::tosa";
-}
-
-//===----------------------------------------------------------------------===//
 // TOSA Operator Class.
 //===----------------------------------------------------------------------===//
 
 class Tosa_Op<string mnemonic, list<Trait> traits = []> :
-    Op<Tosa_Dialect, mnemonic, !listconcat(traits, [TosaOpInterface, 
-    TosaResolvableShapeOperands])> {
+    Op<Tosa_Dialect, mnemonic, !listconcat(traits, [TosaOpInterface])> {
 }
 
 class Tosa_ElementwiseOp<string mnemonic, list<Trait> traits = []> :

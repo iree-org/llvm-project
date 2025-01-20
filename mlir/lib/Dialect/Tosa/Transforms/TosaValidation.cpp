@@ -536,8 +536,6 @@ bool TosaValidation::isValidElementType(Type type) {
         return true;
       }
     }
-  } else if (mlir::isa<tosa::shapeType>(type)) {
-    return true;
   }
   return false;
 }
