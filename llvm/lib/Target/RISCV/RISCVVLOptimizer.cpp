@@ -1320,6 +1320,13 @@ bool RISCVVLOptimizer::tryReduceVL(MachineInstr &OrigMI) {
     }
 
     if (CommonVL->isImm()) {
+      if (CommonVL->isImm() && VLOp.isImm() &&
+          VLOp.getImm() == CommonVL->getImm()) {
+        LLVM_DEBUG(dbgs() << "  VL is already reduced to" << VLOp << " for "
+                          << MI << "\n");
+        continue;
+      }
+
       LLVM_DEBUG(dbgs() << "  Reduce VL from " << VLOp << " to "
                         << CommonVL->getImm() << " for " << MI << "\n");
       VLOp.ChangeToImmediate(CommonVL->getImm());
