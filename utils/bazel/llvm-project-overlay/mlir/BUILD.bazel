@@ -855,7 +855,6 @@ mlir_c_api_cc_library(
     includes = ["include"],
     deps = [
         ":ConversionPasses",
-        ":ConvertToSPIRV",
         ":Pass",
     ],
 )
@@ -4307,7 +4306,6 @@ cc_library(
         ":ControlFlowToSPIRV",
         ":ConversionPassIncGen",
         ":ConvertToLLVM",
-        ":ConvertToSPIRV",
         ":FuncToEmitC",
         ":FuncToLLVM",
         ":FuncToSPIRV",
@@ -8628,36 +8626,6 @@ cc_library(
         ":Transforms",
         "//llvm:Core",
         "//llvm:Support",
-    ],
-)
-
-cc_library(
-    name = "ConvertToSPIRV",
-    srcs = ["lib/Conversion/ConvertToSPIRV/ConvertToSPIRVPass.cpp"],
-    hdrs = ["include/mlir/Conversion/ConvertToSPIRV/ConvertToSPIRVPass.h"],
-    includes = ["include"],
-    deps = [
-        ":ArithToSPIRV",
-        ":ArithTransforms",
-        ":ConversionPassIncGen",
-        ":FuncToSPIRV",
-        ":GPUDialect",
-        ":GPUToSPIRV",
-        ":IR",
-        ":IndexToSPIRV",
-        ":MemRefToSPIRV",
-        ":Pass",
-        ":Rewrite",
-        ":SCFToSPIRV",
-        ":SPIRVConversion",
-        ":SPIRVDialect",
-        ":SPIRVTransforms",
-        ":TransformUtils",
-        ":Transforms",
-        ":UBToSPIRV",
-        ":VectorDialect",
-        ":VectorToSPIRV",
-        ":VectorTransforms",
     ],
 )
 
