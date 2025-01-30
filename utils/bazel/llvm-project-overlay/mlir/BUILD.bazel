@@ -4481,6 +4481,7 @@ cc_library(
     includes = ["include"],
     deps = [
         ":InferIntRangeInterface",
+        ":ShapedOpInterfaces",
         "//llvm:Support",
     ],
 )
@@ -7732,6 +7733,7 @@ td_library(
         ":CastInterfacesTdFiles",
         ":ControlFlowInterfacesTdFiles",
         ":DestinationStyleOpInterfaceTdFiles",
+        ":InferIntRangeInterfaceTdFiles",
         ":InferTypeOpInterfaceTdFiles",
         ":OpBaseTdFiles",
         ":ParallelCombiningOpInterfaceTdFiles",
@@ -7798,6 +7800,8 @@ cc_library(
         ":DestinationStyleOpInterface",
         ":DialectUtils",
         ":IR",
+        ":InferIntRangeCommon",
+        ":InferIntRangeInterface",
         ":InferTypeOpInterface",
         ":InliningUtils",
         ":LoopLikeInterface",
@@ -13471,6 +13475,8 @@ cc_library(
         ":CopyOpInterface",
         ":DialectUtils",
         ":IR",
+        ":InferIntRangeCommon",
+        ":InferIntRangeInterface",
         ":InferTypeOpInterface",
         ":InliningUtils",
         ":MemRefBaseIncGen",
