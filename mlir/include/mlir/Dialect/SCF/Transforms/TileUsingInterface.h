@@ -11,6 +11,7 @@
 
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/Transforms/Transforms.h"
+#include "mlir/IR/Dominance.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "mlir/Interfaces/TilingInterface.h"
@@ -328,7 +329,14 @@ struct SCFFuseConsumerOfSliceResult {
   SmallVector<Operation *> tiledOps;
 };
 FailureOr<scf::SCFFuseConsumerOfSliceResult>
-tileAndFuseConsumerOfSlice(RewriterBase &rewriter, Operation *candidateSliceOp);
+tileAndFuseConsumerOfSlice(RewriterBase &rewriter, DominanceInfo &dominanceInfo,
+                           Operation *candidateSliceOp);
+inline FailureOr<scf::SCFFuseConsumerOfSliceResult>
+tileAndFuseConsumerOfSlice(RewriterBase &rewriter,
+                           Operation *candidateSliceOp) {
+  DominanceInfo dominanceInfo;
+  return tileAndFuseConsumerOfSlice(rewriter, dominanceInfo, candidateSliceOp);
+}
 
 /// Method to lower an `op` that implements the `TilingInterface` to
 /// loops/scalars.
