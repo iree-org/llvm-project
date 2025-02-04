@@ -594,8 +594,7 @@ Fortran::lower::genCallOpAndResult(
 
     builder.create<cuf::KernelLaunchOp>(
         loc, funcType.getResults(), funcSymbolAttr, grid_x, grid_y, grid_z,
-        block_x, block_y, block_z, bytes, stream, operands,
-        /*arg_attrs=*/nullptr, /*res_attrs=*/nullptr);
+        block_x, block_y, block_z, bytes, stream, operands);
     callNumResults = 0;
   } else if (caller.requireDispatchCall()) {
     // Procedure call requiring a dynamic dispatch. Call is created with
@@ -622,8 +621,7 @@ Fortran::lower::genCallOpAndResult(
       dispatch = builder.create<fir::DispatchOp>(
           loc, funcType.getResults(), builder.getStringAttr(procName),
           caller.getInputs()[*passArg], operands,
-          builder.getI32IntegerAttr(*passArg), /*arg_attrs=*/nullptr,
-          /*res_attrs=*/nullptr, procAttrs);
+          builder.getI32IntegerAttr(*passArg), procAttrs);
     } else {
       // NOPASS
       const Fortran::evaluate::Component *component =
@@ -638,8 +636,7 @@ Fortran::lower::genCallOpAndResult(
         passObject = builder.create<fir::LoadOp>(loc, passObject);
       dispatch = builder.create<fir::DispatchOp>(
           loc, funcType.getResults(), builder.getStringAttr(procName),
-          passObject, operands, nullptr, /*arg_attrs=*/nullptr,
-          /*res_attrs=*/nullptr, procAttrs);
+          passObject, operands, nullptr, procAttrs);
     }
     callNumResults = dispatch.getNumResults();
     if (callNumResults != 0)
@@ -647,8 +644,7 @@ Fortran::lower::genCallOpAndResult(
   } else {
     // Standard procedure call with fir.call.
     auto call = builder.create<fir::CallOp>(
-        loc, funcType.getResults(), funcSymbolAttr, operands,
-        /*arg_attrs=*/nullptr, /*res_attrs=*/nullptr, procAttrs);
+        loc, funcType.getResults(), funcSymbolAttr, operands, procAttrs);
 
     callNumResults = call.getNumResults();
     if (callNumResults != 0)
