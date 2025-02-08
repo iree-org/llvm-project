@@ -1625,7 +1625,7 @@ def Tosa_ReshapeOp : Tosa_InferTensorTypeOp<"reshape"> {
 
   let arguments = (ins
     Tosa_Tensor:$input1,
-    Tosa_Shape:$shape
+    DenseI64ArrayAttr:$new_shape
   );
 
   let results = (outs

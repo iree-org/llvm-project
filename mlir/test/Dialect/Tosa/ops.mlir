@@ -504,8 +504,7 @@ func.func @test_greater_equal(%arg0: tensor<13x1x3xf32>, %arg1: tensor<13x21x3xf
 // CHECK-LABEL: reduce_all
 func.func @test_reduce_all(%arg0: tensor<13x21x3xi1>) -> tensor<21x3xi1> {
   %0 = tosa.reduce_all %arg0 {axis = 0 : i32} : (tensor<13x21x3xi1>) -> tensor<1x21x3xi1>
-  %2 = tosa.const_shape {value = dense<[21, 3]> : tensor<2xindex>} : () -> !tosa.shape<2>
-  %1 = tosa.reshape %0, %2 : (tensor<1x21x3xi1>, !tosa.shape<2>) -> tensor<21x3xi1>
+  %1 = tosa.reshape %0 {new_shape = array<i64: 21, 3>} : (tensor<1x21x3xi1>) -> tensor<21x3xi1>
   return %1 : tensor<21x3xi1>
 }
 
@@ -513,8 +512,7 @@ func.func @test_reduce_all(%arg0: tensor<13x21x3xi1>) -> tensor<21x3xi1> {
 // CHECK-LABEL: reduce_any
 func.func @test_reduce_any(%arg0: tensor<13x21x3xi1>) -> tensor<21x3xi1> {
   %0 = tosa.reduce_any %arg0 {axis = 0 : i32} : (tensor<13x21x3xi1>) -> tensor<1x21x3xi1>
-  %2 = tosa.const_shape {value = dense<[21, 3]> : tensor<2xindex>} : () -> !tosa.shape<2>
-  %1 = tosa.reshape %0, %2 : (tensor<1x21x3xi1>, !tosa.shape<2>) -> tensor<21x3xi1>
+  %1 = tosa.reshape %0 {new_shape = array<i64: 21, 3>} : (tensor<1x21x3xi1>) -> tensor<21x3xi1>
   return %1 : tensor<21x3xi1>
 }
 
@@ -522,8 +520,7 @@ func.func @test_reduce_any(%arg0: tensor<13x21x3xi1>) -> tensor<21x3xi1> {
 // CHECK-LABEL: reduce_max
 func.func @test_reduce_max(%arg0: tensor<13x21x3xf32>) -> tensor<21x3xf32> {
   %0 = tosa.reduce_max %arg0 {axis = 0 : i32} : (tensor<13x21x3xf32>) -> tensor<1x21x3xf32>
-  %2 = tosa.const_shape {value = dense<[21, 3]> : tensor<2xindex>} : () -> !tosa.shape<2>
-  %1 = tosa.reshape %0, %2 : (tensor<1x21x3xf32>, !tosa.shape<2>) -> tensor<21x3xf32>
+  %1 = tosa.reshape %0 {new_shape = array<i64: 21, 3>} : (tensor<1x21x3xf32>) -> tensor<21x3xf32>
   return %1 : tensor<21x3xf32>
 }
 
@@ -531,8 +528,7 @@ func.func @test_reduce_max(%arg0: tensor<13x21x3xf32>) -> tensor<21x3xf32> {
 // CHECK-LABEL: reduce_min
 func.func @test_reduce_min(%arg0: tensor<13x21x3xf32>) -> tensor<21x3xf32> {
   %0 = tosa.reduce_min %arg0 {axis = 0 : i32} : (tensor<13x21x3xf32>) -> tensor<1x21x3xf32>
-  %2 = tosa.const_shape {value = dense<[21, 3]> : tensor<2xindex>} : () -> !tosa.shape<2>
-  %1 = tosa.reshape %0, %2 : (tensor<1x21x3xf32>, !tosa.shape<2>) -> tensor<21x3xf32>
+  %1 = tosa.reshape %0 {new_shape = array<i64: 21, 3>} : (tensor<1x21x3xf32>) -> tensor<21x3xf32>
   return %1 : tensor<21x3xf32>
 }
 
@@ -540,8 +536,7 @@ func.func @test_reduce_min(%arg0: tensor<13x21x3xf32>) -> tensor<21x3xf32> {
 // CHECK-LABEL: reduce_product
 func.func @test_reduce_product(%arg0: tensor<13x21x3xf32>) -> tensor<21x3xf32> {
   %0 = tosa.reduce_prod %arg0 {axis = 0 : i32} : (tensor<13x21x3xf32>) -> tensor<1x21x3xf32>
-  %2 = tosa.const_shape {value = dense<[21, 3]> : tensor<2xindex>} : () -> !tosa.shape<2>
-  %1 = tosa.reshape %0, %2 : (tensor<1x21x3xf32>, !tosa.shape<2>) -> tensor<21x3xf32>
+  %1 = tosa.reshape %0 {new_shape = array<i64: 21, 3>} : (tensor<1x21x3xf32>) -> tensor<21x3xf32>
   return %1 : tensor<21x3xf32>
 }
 
@@ -549,8 +544,7 @@ func.func @test_reduce_product(%arg0: tensor<13x21x3xf32>) -> tensor<21x3xf32> {
 // CHECK-LABEL: reduce_sum
 func.func @test_reduce_sum(%arg0: tensor<13x21x3xf32>) -> tensor<21x3xf32> {
   %0 = tosa.reduce_sum %arg0 {axis = 0 : i32} : (tensor<13x21x3xf32>) -> tensor<1x21x3xf32>
-  %2 = tosa.const_shape {value = dense<[21, 3]> : tensor<2xindex>} : () -> !tosa.shape<2>
-  %1 = tosa.reshape %0, %2 : (tensor<1x21x3xf32>, !tosa.shape<2>) -> tensor<21x3xf32>
+  %1 = tosa.reshape %0 {new_shape = array<i64: 21, 3>} : (tensor<1x21x3xf32>) -> tensor<21x3xf32>
   return %1 : tensor<21x3xf32>
 }
 
@@ -581,8 +575,7 @@ func.func @test_pad_explicit_value(%arg0: tensor<13x21x3xf32>) -> tensor<13x21x3
 // -----
 // CHECK-LABEL: reshape
 func.func @test_reshape(%arg0: tensor<13x21x3xf32>) -> tensor<1x819xf32> {
-  %1 = tosa.const_shape {value = dense<[1, 819]> : tensor<2xindex>} : () -> !tosa.shape<2>
-  %0 = tosa.reshape %arg0, %1 : (tensor<13x21x3xf32>, !tosa.shape<2>) -> tensor<1x819xf32>
+  %0 = tosa.reshape %arg0 {new_shape = array<i64: 1, 819>} : (tensor<13x21x3xf32>) -> tensor<1x819xf32>
   return %0 : tensor<1x819xf32>
 }
 
@@ -731,8 +724,7 @@ func.func @test_while_loop(%arg0: tensor<10xi32>, %arg1: tensor<i32>) {
   ^bb0(%arg2: tensor<i32>, %arg3: tensor<i32>, %arg4: tensor<10xi32>):
     %2 = "tosa.const"() {value = dense<1> : tensor<i32>} : () -> tensor<i32>
     %3 = tosa.add %arg3, %2 : (tensor<i32>, tensor<i32>) -> tensor<i32>
-    %7 = tosa.const_shape {value = dense<[1]> : tensor<1xindex>} : () -> !tosa.shape<1>
-    %4 = tosa.reshape %2, %7 : (tensor<i32>, !tosa.shape<1>) -> tensor<1xi32>
+    %4 = tosa.reshape %2 {new_shape = array<i64: 1>} : (tensor<i32>) -> tensor<1xi32>
     %5 = tosa.add %arg4, %4 : (tensor<10xi32>, tensor<1xi32>) -> tensor<10xi32>
     %6 = tosa.add %arg2, %2 : (tensor<i32>, tensor<i32>) -> tensor<i32>
     tosa.yield %6, %3, %5 : tensor<i32>, tensor<i32>, tensor<10xi32>

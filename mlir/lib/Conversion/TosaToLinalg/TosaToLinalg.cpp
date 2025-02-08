@@ -1956,10 +1956,9 @@ struct TileConverter : public OpConversionPattern<tosa::TileOp> {
           nestedBuilder.create<linalg::YieldOp>(op.getLoc(), *args.begin());
         });
 
-    auto shapeValue = getTosaConstShape(
-        rewriter, loc, mlir::tosa::convertFromMlirShape(resultTy.getShape()));
     rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
-        op, resultTy, genericOp.getResult(0), shapeValue);
+        op, resultTy, genericOp.getResult(0),
+        rewriter.getDenseI64ArrayAttr(resultTy.getShape()));
     return success();
   }
 };
