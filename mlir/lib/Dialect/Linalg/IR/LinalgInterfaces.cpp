@@ -260,26 +260,28 @@ static Value getSourceSkipUnary(Value value) {
   return value;
 }
 
-bool mlir::linalg::detail::isContractionBody(
-    Block &block, function_ref<bool(Operation *, Operation *)> isaPair,
+bool mlir::linalg::detail::areContractionBlockArguments(
+    ArrayRef<BlockArgument> blockArgs, int64_t resultIdx,
+    function_ref<bool(Operation *, Operation *)> isaPair,
     llvm::raw_ostream &errs) {
+  if (blockArgs.size() != 3) {
+    errs << "expected 3 block arguments";
+    return false;
+  }
+
+  Block &block = *blockArgs.front().getOwner();
   if (block.empty() || !block.back().mightHaveTrait<OpTrait::IsTerminator>()) {
     errs << "no terminator in the block";
     return false;
   }
 
-  if (block.getNumArguments() != 3) {
-    errs << "expected block with 3 arguments";
-    return false;
-  }
-
   Operation *terminator = block.getTerminator();
-  if (terminator->getNumOperands() != 1) {
-    errs << "expected terminator with 1 operand";
+  if (terminator->getNumOperands() <= resultIdx) {
+    errs << "expected terminator to contain an operand at resultIdx";
     return false;
   }
 
-  Value yielded = getSourceSkipUnary(terminator->getOperand(0));
+  Value yielded = getSourceSkipUnary(terminator->getOperand(resultIdx));
   Operation *reductionOp = yielded.getDefiningOp();
   if (reductionOp->getNumResults() != 1 || reductionOp->getNumOperands() != 2) {
     errs << "expected reduction op to be binary";
@@ -289,8 +291,7 @@ bool mlir::linalg::detail::isContractionBody(
   Value reductionLHS = getSourceSkipUnary(reductionOp->getOperand(0));
   Value reductionRHS = getSourceSkipUnary(reductionOp->getOperand(1));
 
-  if (reductionLHS != block.getArgument(2) &&
-      reductionRHS != block.getArgument(2)) {
+  if (reductionLHS != blockArgs[2] && reductionRHS != blockArgs[2]) {
     errs << "expected reduction to take block argument #2 as one of the "
             "operands (modulo unary casts)";
     return false;
@@ -312,16 +313,82 @@ bool mlir::linalg::detail::isContractionBody(
 
   Value elementwiseLHS = getSourceSkipUnary(elementwiseOp->getOperand(0));
   Value elementwiseRHS = getSourceSkipUnary(elementwiseOp->getOperand(1));
-  if ((elementwiseLHS == block.getArgument(0) &&
-       elementwiseRHS == block.getArgument(1)) ||
-      (elementwiseLHS == block.getArgument(1) &&
-       elementwiseRHS == block.getArgument(0))) {
+  if ((elementwiseLHS == blockArgs[0] && elementwiseRHS == blockArgs[1]) ||
+      (elementwiseLHS == blockArgs[1] && elementwiseRHS == blockArgs[0])) {
     return true;
   }
 
   errs << "expected elementwise op to apply to block arguments (modulo unary "
           "casts)";
   return false;
+}
+
+bool mlir::linalg::detail::isContractionBody(
+    Block &block, function_ref<bool(Operation *, Operation *)> isaPair,
+    llvm::raw_ostream &errs) {
+  if (block.empty() || !block.back().mightHaveTrait<OpTrait::IsTerminator>()) {
+    errs << "no terminator in the block";
+    return false;
+  }
+
+  if (block.getNumArguments() != 3) {
+    errs << "expected block with 3 arguments";
+    return false;
+  }
+
+  Operation *terminator = block.getTerminator();
+  if (terminator->getNumOperands() != 1) {
+    errs << "expected terminator with 1 operand";
+    return false;
+  }
+
+  return areContractionBlockArguments(block.getArguments(), 0, isaPair, errs);
+
+  // Value yielded = getSourceSkipUnary(terminator->getOperand(0));
+  // Operation *reductionOp = yielded.getDefiningOp();
+  // if (reductionOp->getNumResults() != 1 || reductionOp->getNumOperands() !=
+  // 2) {
+  //   errs << "expected reduction op to be binary";
+  //   return false;
+  // }
+
+  // Value reductionLHS = getSourceSkipUnary(reductionOp->getOperand(0));
+  // Value reductionRHS = getSourceSkipUnary(reductionOp->getOperand(1));
+
+  // if (reductionLHS != block.getArgument(2) &&
+  //     reductionRHS != block.getArgument(2)) {
+  //   errs << "expected reduction to take block argument #2 as one of the "
+  //           "operands (modulo unary casts)";
+  //   return false;
+  // }
+
+  // Value contributed = getSourceSkipUnary(
+  //     isa<BlockArgument>(reductionLHS) ? reductionRHS : reductionLHS);
+  // Operation *elementwiseOp = contributed.getDefiningOp();
+  // if (!elementwiseOp || elementwiseOp->getNumResults() != 1 ||
+  //     elementwiseOp->getNumOperands() != 2) {
+  //   errs << "expected elementwise op to be binary";
+  //   return false;
+  // }
+
+  // if (!isaPair(elementwiseOp, reductionOp)) {
+  //   errs << "expected reduction/elementwise op kind not satisfied";
+  //   return false;
+  // }
+
+  // Value elementwiseLHS = getSourceSkipUnary(elementwiseOp->getOperand(0));
+  // Value elementwiseRHS = getSourceSkipUnary(elementwiseOp->getOperand(1));
+  // if ((elementwiseLHS == block.getArgument(0) &&
+  //      elementwiseRHS == block.getArgument(1)) ||
+  //     (elementwiseLHS == block.getArgument(1) &&
+  //      elementwiseRHS == block.getArgument(0))) {
+  //   return true;
+  // }
+
+  // errs << "expected elementwise op to apply to block arguments (modulo unary
+  // "
+  //         "casts)";
+  // return false;
 }
 
 /// Returns true if the two operations are of the kinds specified by a pair of

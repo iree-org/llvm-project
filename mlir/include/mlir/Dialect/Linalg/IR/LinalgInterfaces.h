@@ -167,6 +167,14 @@ bool isContractionBody(Block &block,
                        function_ref<bool(Operation *, Operation *)> isaPair,
                        llvm::raw_ostream &errs = mlir::thread_safe_nulls());
 
+/// Returns true if the passed blockArgs and resultIdx are the block arguments
+/// and result of a contraction op body. The criteria for being a contraction
+/// op body are the same as in `isContractionBody`.
+bool areContractionBlockArguments(
+    ArrayRef<BlockArgument> blockArgs, int64_t resultIdx,
+    function_ref<bool(Operation *, Operation *)> isaPair,
+    llvm::raw_ostream &errs = mlir::thread_safe_nulls());
+
 /// Result of matching a Linalg generic against the predicates of it being a
 /// contraction.
 enum class MatchContractionResult;
