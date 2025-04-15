@@ -15,6 +15,7 @@
 #include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/IR/OpDefinition.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
 #include "llvm/ADT/STLExtras.h"
 
@@ -66,7 +67,6 @@ std::pair<LinearizedMemRefInfo, OpFoldResult> getLinearizedMemRefOffsetAndSize(
   SmallVector<AffineExpr> symbols(2 * sourceRank);
   bindSymbolsList(builder.getContext(), MutableArrayRef{symbols});
   AffineExpr addMulMap = builder.getAffineConstantExpr(0);
-  AffineExpr mulMap = builder.getAffineConstantExpr(1);
 
   SmallVector<OpFoldResult> offsetValues(2 * sourceRank);
 
@@ -75,18 +75,69 @@ std::pair<LinearizedMemRefInfo, OpFoldResult> getLinearizedMemRefOffsetAndSize(
     addMulMap = addMulMap + symbols[offsetIdx] * symbols[offsetIdx + 1];
     offsetValues[offsetIdx] = indicesVec[i];
     offsetValues[offsetIdx + 1] = strides[i];
-
-    mulMap = mulMap * symbols[i];
   }
 
   // Adjust linearizedIndices and size by the scale factor (dstBits / srcBits).
   int64_t scaler = dstBits / srcBits;
+
+  size_t symbolIndex = 0;
+  SmallVector<Value> values;
+  SmallVector<AffineExpr> productExpressions;
+  AffineExpr mulMap = builder.getAffineConstantExpr(1);
+  int64_t constResult = 0;
+  SmallVector<int64_t> constantStrides;
+  SmallVector<int64_t> constantSizes;
+
+  for (unsigned i = 0; i < sourceRank; ++i) {
+    mulMap = mulMap * symbols[i];
+    AffineExpr strideExpr, sizeExpr;
+    OpFoldResult stride = strides[i];
+    OpFoldResult size = sizes[i];
+    if (auto constantStride = getConstantIntValue(stride)) {
+      strideExpr = builder.getAffineConstantExpr(*constantStride);
+      constantStrides.push_back(*constantStride);
+    } else {
+      strideExpr = symbols[symbolIndex++];
+      values.push_back(getValueOrCreateConstantIndexOp(builder, loc, stride));
+    }
+
+    if (auto constantSize = getConstantIntValue(size)) {
+      sizeExpr = builder.getAffineConstantExpr(*constantSize);
+      constantSizes.push_back(*constantSize);
+    } else {
+      sizeExpr = symbols[symbolIndex++];
+      values.push_back(getValueOrCreateConstantIndexOp(builder, loc, size));
+    }
+
+    productExpressions.push_back((strideExpr * sizeExpr).floorDiv(scaler));
+    if (getConstantIntValue(stride) && getConstantIntValue(size)) {
+      constResult = std::max(constResult, constantStrides.back() *
+                                              constantSizes.back() / scaler);
+    }
+  }
+  AffineMap maxMap = AffineMap::get(
+      /*dimCount=*/0, /*symbolCount=*/symbolIndex, productExpressions,
+      builder.getContext());
+
+  OpFoldResult linearizedSize;
+  if (symbolIndex == 0) {
+    // Get the constant value from the map.
+    Attribute totalSize = builder.getIndexAttr(constResult);
+    linearizedSize = totalSize;
+    // llvm::errs() << "linearizedSize: " << constantValue << "\n";
+  } else {
+    // Generate dynamic size computation using AffineMaxOp.
+    Value totalSize = builder.create<affine::AffineMaxOp>(loc, maxMap, values);
+    linearizedSize = totalSize;
+    // llvm::errs() << "linearizedSize: " << totalSize << "\n";
+  }
+
   mulMap = mulMap.floorDiv(scaler);
 
   OpFoldResult linearizedIndices = affine::makeComposedFoldedAffineApply(
       builder, loc, addMulMap.floorDiv(scaler), offsetValues);
-  OpFoldResult linearizedSize =
-      affine::makeComposedFoldedAffineApply(builder, loc, mulMap, sizes);
+  // OpFoldResult linearizedSize =
+  //     affine::makeComposedFoldedAffineApply(builder, loc, mulMap, sizes);
 
   // Adjust baseOffset by the scale factor (dstBits / srcBits).
   AffineExpr s0;
