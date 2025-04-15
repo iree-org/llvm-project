@@ -274,6 +274,8 @@ struct ComposeCollapseOfExpandOp : public OpRewritePattern<CollapseOpTy> {
     int64_t resultRank = resultType.getRank();
     if (srcType == resultType)
       return failure();
+    if (!resultType.hasStaticShape())
+      return failure();
 
     SmallVector<ReassociationIndices, 4> higherRankReassociation,
         lowerRankReassociation;
