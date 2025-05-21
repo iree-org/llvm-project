@@ -435,7 +435,8 @@ struct AssumeAlignmentOpLowering
         createIndexAttrConstant(rewriter, loc, getIndexType(), alignment);
     rewriter.create<LLVM::AssumeOp>(loc, trueCond, LLVM::AssumeAlignTag(), ptr,
                                     alignmentConst);
-    rewriter.replaceOp(op, memref);
+
+    rewriter.eraseOp(op);
     return success();
   }
 };
