@@ -180,7 +180,6 @@ mlir::getSlice(Operation *op, const BackwardSliceOptions &backwardSliceOptions,
     LogicalResult result =
         getBackwardSlice(currentOp, &backwardSlice, backwardSliceOptions);
     assert(result.succeeded());
-    (void)result;
     slice.insert_range(backwardSlice);
 
     // Compute and insert the forwardSlice starting from currentOp.
@@ -205,7 +204,6 @@ static bool dependsOnCarriedVals(Value value,
   };
   LogicalResult result = getBackwardSlice(value, &slice, sliceOptions);
   assert(result.succeeded());
-  (void)result;
 
   // Check that none of the operands of the operations in the backward slice are
   // loop iteration arguments, and neither is the value itself.

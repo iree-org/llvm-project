@@ -1774,7 +1774,6 @@ checkAssumptionForLoop(Operation *loopOp, Operation *consumerOp,
   for (auto operand : consumerOp->getOperands()) {
     LogicalResult result = getBackwardSlice(operand, &slice, options);
     assert(result.succeeded() && "expected a backward slice");
-    (void)result;
   }
 
   if (!slice.empty()) {
