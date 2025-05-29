@@ -1094,8 +1094,7 @@ LogicalResult mlir::moveOperationDependencies(RewriterBase &rewriter,
     return !dominance.properlyDominates(sliceBoundaryOp, insertionPoint);
   };
   llvm::SetVector<Operation *> slice;
-  LogicalResult result = getBackwardSlice(op, &slice, options);
-  assert(result.succeeded() && "expected a backward slice");
+  getBackwardSlice(op, &slice, options);
 
   // If the slice contains `insertionPoint` cannot move the dependencies.
   if (slice.contains(insertionPoint)) {
@@ -1160,8 +1159,7 @@ LogicalResult mlir::moveValueDefinitions(RewriterBase &rewriter,
   };
   llvm::SetVector<Operation *> slice;
   for (auto value : prunedValues) {
-    LogicalResult result = getBackwardSlice(value, &slice, options);
-    assert(result.succeeded() && "expected a backward slice");
+    getBackwardSlice(value, &slice, options);
   }
 
   // If the slice contains `insertionPoint` cannot move the dependencies.
