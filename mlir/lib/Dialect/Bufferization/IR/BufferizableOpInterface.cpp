@@ -345,9 +345,10 @@ defaultFunctionArgTypeConverter(TensorType type, Attribute memorySpace,
 }
 /// Default unknown type converter: Use a fully dynamic layout map.
 BaseMemRefType
-defaultUnknownTypeConverter(TensorType tensorType, Attribute memorySpace,
+defaultUnknownTypeConverter(Value value, Attribute memorySpace,
                             const BufferizationOptions &options) {
-  return getMemRefTypeWithFullyDynamicLayout(tensorType, memorySpace);
+  return getMemRefTypeWithFullyDynamicLayout(
+      llvm::cast<TensorType>(value.getType()), memorySpace);
 }
 
 } // namespace
@@ -723,8 +724,7 @@ bufferization::getBufferType(Value value, const BufferizationOptions &options,
   if (!memSpace.has_value())
     return op->emitError("could not infer memory space");
 
-  return getMemRefType(cast<TensorType>(value.getType()), options,
-                       /*layout=*/{}, *memSpace);
+  return getMemRefType(value, options, /*layout=*/{}, *memSpace);
 }
 
 bool bufferization::hasTensorSemantics(Operation *op) {
@@ -797,10 +797,12 @@ LogicalResult BufferizationOptions::createMemCpy(OpBuilder &b, Location loc,
 // Bufferization-specific IRMapping support with debugging.
 //===----------------------------------------------------------------------===//
 
-BaseMemRefType bufferization::getMemRefType(TensorType tensorType,
+BaseMemRefType bufferization::getMemRefType(Value value,
                                             const BufferizationOptions &options,
                                             MemRefLayoutAttrInterface layout,
                                             Attribute memorySpace) {
+  auto tensorType = llvm::cast<TensorType>(value.getType());
+
   // Case 1: Unranked memref type.
   if (auto unrankedTensorType =
           llvm::dyn_cast<UnrankedTensorType>(tensorType)) {
@@ -817,7 +819,7 @@ BaseMemRefType bufferization::getMemRefType(TensorType tensorType,
                            memorySpace);
   }
 
-  return options.unknownTypeConverterFn(tensorType, memorySpace, options);
+  return options.unknownTypeConverterFn(value, memorySpace, options);
 }
 
 BaseMemRefType
@@ -953,11 +955,10 @@ FailureOr<BaseMemRefType> bufferization::detail::defaultGetBufferType(
     const BufferizationState &bufferizationState,
     SmallVector<Value> &invocationStack) {
   assert(llvm::isa<TensorType>(value.getType()) && "expected tensor type");
-  auto tensorType = cast<TensorType>(value.getType());
 
   // No further analysis is possible for a block argument.
   if (llvm::isa<BlockArgument>(value))
-    return bufferization::getMemRefType(tensorType, options);
+    return bufferization::getMemRefType(value, options);
 
   // Value is an OpResult.
   Operation *op = getOwnerOfValue(value);
@@ -980,7 +981,7 @@ FailureOr<BaseMemRefType> bufferization::detail::defaultGetBufferType(
   if (!memSpace.has_value())
     return op->emitError("could not infer memory space");
 
-  return getMemRefType(tensorType, options, /*layout=*/{}, *memSpace);
+  return getMemRefType(value, options, /*layout=*/{}, *memSpace);
 }
 
 bool bufferization::detail::defaultIsRepetitiveRegion(
