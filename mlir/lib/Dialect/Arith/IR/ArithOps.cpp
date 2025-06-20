@@ -1517,9 +1517,9 @@ bool arith::TruncIOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
 
 void arith::TruncIOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                   MLIRContext *context) {
-  patterns
-      .add<TruncIExtSIToExtSI, TruncIExtUIToExtUI, TruncIShrSIToTrunciShrUI>(
-          context);
+  patterns.add<TruncIExtSIToExtSI, TruncIExtUIToExtUI, TruncIShrSIToTrunciShrUI,
+               TruncIShrUIMulIToMulSIExtended, TruncIShrUIMulIToMulUIExtended>(
+      context);
 }
 
 LogicalResult arith::TruncIOp::verify() {
