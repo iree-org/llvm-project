@@ -173,7 +173,7 @@ struct DistributedLoadStoreHelper {
     }
     SmallVector<bool> inBounds(indices.size(), true);
     return b.create<vector::TransferReadOp>(
-        loc, cast<VectorType>(type), buffer, indices, /*padding=*/std::nullopt,
+        loc, cast<VectorType>(type), buffer, indices,
         ArrayRef<bool>(inBounds.begin(), inBounds.end()));
   }
 
