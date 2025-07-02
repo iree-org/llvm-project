@@ -110,6 +110,9 @@ std::optional<int64_t> getConstantIntValue(OpFoldResult ofr);
 /// If all ofrs are constant integers or IntegerAttrs, return the integers.
 std::optional<SmallVector<int64_t>>
 getConstantIntValues(ArrayRef<OpFoldResult> ofrs);
+/// Return a shape induced by ofrs, with ShapedType::kDynamic encoding dynamic
+/// Values.
+SmallVector<int64_t> getInducedShape(ArrayRef<OpFoldResult> ofrs);
 
 /// Return true if `ofr` is constant integer equal to `value`.
 bool isConstantIntValue(OpFoldResult ofr, int64_t value);

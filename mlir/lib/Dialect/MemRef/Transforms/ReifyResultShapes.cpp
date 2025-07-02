@@ -11,14 +11,22 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/MemRef/Transforms/Transforms.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
+#include "mlir/IR/BuiltinTypeInterfaces.h"
+#include "mlir/IR/OpDefinition.h"
+#include "mlir/IR/TypeUtilities.h"
 #include "mlir/Interfaces/DestinationStyleOpInterface.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/InterleavedRange.h"
 
 #define DEBUG_TYPE "reify-result-shapes"
@@ -49,85 +57,15 @@ static LogicalResult reifyOpResultShapes(RewriterBase &rewriter,
     return op->emitWarning() << "failed to get the reified shapes";
   }
 
-  bool modified = false;
-  // Compute the new output types.
-  SmallVector<Type> outTypes;
-  for (const auto &[oldTy, reifiedShape] :
-       llvm::zip(op->getResultTypes(), reifiedResultShapes)) {
-    // Skip if it's not a memref or tensor type.
-    if (!isa<RankedTensorType, MemRefType>(oldTy)) {
-      outTypes.push_back(oldTy);
-      continue;
-    }
-
-    ShapedType shapedTy = dyn_cast<ShapedType>(oldTy);
-
-    SmallVector<int64_t> shape = llvm::to_vector(shapedTy.getShape());
-    for (auto &&[dim, ofr] : llvm::zip_equal(shape, reifiedShape)) {
-      std::optional<int64_t> maybeCst = getConstantIntValue(ofr);
-      // If the reified dim is dynamic set it appropriately.
-      if (!maybeCst.has_value()) {
-        dim = ShapedType::kDynamic;
-        continue;
-      }
-      // Set the static dim.
-      dim = *maybeCst;
-    }
-
-    // If the shape didn't change continue.
-    if (shape == shapedTy.getShape()) {
-      outTypes.push_back(oldTy);
-      continue;
-    }
-    modified = true;
-    outTypes.push_back(shapedTy.cloneWith(shape, shapedTy.getElementType()));
+  for (auto [idx, reifiedShape] : llvm::enumerate(reifiedResultShapes)) {
+    SmallVector<Value> vals =
+        getValueOrCreateConstantIndexOp(rewriter, op->getLoc(), reifiedShape);
+    vals.insert(vals.begin(), op->getResult(idx));
+    OperationState state(op->getLoc(), "transform.materialize_shape");
+    state.addOperands(vals);
+    rewriter.create(state);
   }
 
-  // Return if we don't need to update.
-  if (!modified) {
-    LLVM_DEBUG({ DBGS() << "- op doesn't require update\n"; });
-    return success();
-  }
-
-  LLVM_DEBUG({
-    DBGS() << "- oldTypes: " << llvm::interleaved_array(op->getResultTypes())
-           << " \n";
-    DBGS() << "- outTypes: " << llvm::interleaved_array(outTypes) << " \n";
-  });
-
-  // We now have outTypes that need to be turned to cast ops.
-  Location loc = op->getLoc();
-  SmallVector<Value> newResults;
-  // TODO: `mlir::reifyResultShapes` and op verifiers may not agree atm.
-  // This is a confluence problem that will need to be addressed.
-  // For now, we know PadOp and ConcatOp are fine.
-  assert((isa<tensor::PadOp, tensor::ConcatOp>(op.getOperation())) &&
-         "incorrect op");
-  Operation *newOp = rewriter.clone(*op);
-  for (auto [reifiedTy, oldRes] : llvm::zip(outTypes, op->getResults())) {
-    OpResult newRes = newOp->getResult(oldRes.getResultNumber());
-    Type oldTy = oldRes.getType();
-    // Continue if the type remained invariant or is not shaped.
-    if (oldTy == reifiedTy || !isa<MemRefType, RankedTensorType>(oldTy)) {
-      newResults.push_back(newRes);
-      continue;
-    }
-
-    // Update the type.
-    newRes.setType(reifiedTy);
-    if (isa<RankedTensorType>(reifiedTy)) {
-      newResults.push_back(rewriter.create<tensor::CastOp>(loc, oldTy, newRes));
-    } else {
-      assert(isa<MemRefType>(reifiedTy) && "expected a memref type");
-      newResults.push_back(rewriter.create<memref::CastOp>(loc, oldTy, newRes));
-    }
-  }
-
-  LLVM_DEBUG({
-    DBGS() << "- reified results " << llvm::interleaved_array(newResults)
-           << "\n";
-  });
-  rewriter.replaceOp(op, newResults);
   return success();
 }
 
@@ -143,17 +81,80 @@ struct ReifyResultShapesPass final
 } // namespace
 
 void ReifyResultShapesPass::runOnOperation() {
+  // 1. Select ops that are not DPS and that do not carry an tied operand
+  // shapes. For now, limit to tensor::PadOp and tensor::ConcatOp.
   SmallVector<ReifyRankedShapedTypeOpInterface> ops;
   getOperation()->walk([&](ReifyRankedShapedTypeOpInterface op) {
-    // Handle ops that are not DPS and that do not carry an tied operand shapes.
-    // For now, limit to tensor::PadOp and tensor::ConcatOp.
     if (!isa<tensor::PadOp, tensor::ConcatOp>(op.getOperation()))
       return;
     ops.push_back(op);
   });
+
+  // 2. Insert materialization points to tie the result tensor to its shape
+  // components as SSA values.
   IRRewriter rewriter(&getContext());
   for (ReifyRankedShapedTypeOpInterface op : ops) {
     rewriter.setInsertionPoint(op);
     (void)reifyOpResultShapes(rewriter, op);
   }
+
+  // 3. Resolve ranked shapes greedily for all other ops that implement
+  // ReifyRankedShapedTypeOpInterface, achieving propagation of information.
+  RewritePatternSet patterns(&getContext());
+  memref::populateResolveRankedShapedTypeResultDimsPatterns(patterns);
+  memref::populateResolveShapedTypeResultDimsPatterns(patterns);
+  if (failed(applyPatternsGreedily(getOperation(), std::move(patterns))))
+    return signalPassFailure();
+
+  // 4. Process the information in the materialization points if more static
+  // information is now available.
+  getOperation()->walk([&](Operation *op) {
+    if (op->getName().getStringRef() != "transform.materialize_shape")
+      return;
+    auto resultShapedVal = cast<OpResult>(op->getOperands().front());
+
+    // 4.a. Fold information propagated to AffineApplyOp.
+    SmallVector<OpFoldResult> ofrs =
+        getAsOpFoldResult(op->getOperands().drop_front());
+    for (auto &ofr : ofrs) {
+      if (isa<Attribute>(ofr))
+        continue;
+      if (auto affineApplyOp =
+              (cast<Value>(ofr).getDefiningOp<affine::AffineApplyOp>())) {
+        OpFoldResult o = affine::makeComposedFoldedAffineApply(
+            rewriter, affineApplyOp->getLoc(), affineApplyOp.getAffineMap(),
+            getAsOpFoldResult(affineApplyOp->getOperands()),
+            /*composeAffineMin=*/true);
+        if (isa<Attribute>(o))
+          ofr = o;
+      }
+    }
+
+    // 4.b. Erase the materialization point.
+    rewriter.eraseOp(op);
+
+    // 4.c. Clone the op and insert a better ShapeCastOp if the shape becomes
+    // strictly more static.
+    auto nst = cast<ShapedType>(resultShapedVal.getType());
+    nst = nst.cloneWith(getInducedShape(ofrs), getElementTypeOrSelf(nst));
+    Operation *oldOp = resultShapedVal.getDefiningOp();
+    assert(llvm::isa_and_nonnull<ReifyRankedShapedTypeOpInterface>(oldOp));
+    // 4.c.i. If the shape did not change, bail.
+    auto onst = cast<ShapedType>(
+        oldOp->getResultTypes()[resultShapedVal.getResultNumber()]);
+    if (onst == nst)
+      return;
+
+    // 4.c.ii. If any shape dimension becomes less static, bail.
+    for (auto [ns, os] : llvm::zip_equal(nst.getShape(), onst.getShape())) {
+      if (ShapedType::isDynamic(ns) && !ShapedType::isDynamic(os))
+        return;
+    }
+
+    // 4.c.ii. RAUW
+    Operation *newOp = rewriter.clone(*oldOp);
+    OpResult newRes = newOp->getResult(resultShapedVal.getResultNumber());
+    newRes.setType(nst);
+    rewriter.replaceAllUsesWith(resultShapedVal, newRes);
+  });
 }

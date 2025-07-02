@@ -141,6 +141,22 @@ getConstantIntValues(ArrayRef<OpFoldResult> ofrs) {
   return res;
 }
 
+SmallVector<int64_t> getInducedShape(ArrayRef<OpFoldResult> ofrs) {
+  SmallVector<int64_t> shape;
+  shape.resize_for_overwrite(ofrs.size());
+  for (auto &&[dim, ofr] : llvm::zip_equal(shape, ofrs)) {
+    std::optional<int64_t> maybeCst = getConstantIntValue(ofr);
+    // If the reified dim is dynamic set it appropriately.
+    if (!maybeCst.has_value()) {
+      dim = ShapedType::kDynamic;
+      continue;
+    }
+    // Set the static dim.
+    dim = *maybeCst;
+  }
+  return shape;
+}
+
 bool isConstantIntValue(OpFoldResult ofr, int64_t value) {
   return getConstantIntValue(ofr) == value;
 }
