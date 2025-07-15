@@ -907,6 +907,7 @@ struct PackOpTiling
             ValueBoundsConstraintSet::computeConstantBound(
                 presburger::BoundType::UB, sizes[dim],
                 /*stopCondition=*/nullptr, /*closedUB=*/true);
+        auto sz = getConstantIntValue(sizes[dim]);
         std::optional<int64_t> cstInnerSize =
             getConstantIntValue(dimAndTileMapping[dim]);
         // Currently fusing `packOp` as consumer only expects perfect tiling
@@ -923,7 +924,15 @@ struct PackOpTiling
         // another word, we can only support tiling with consumer if the tile
         // size for the producer is a multiple of the inner tile size for the
         // packed dimensions at this moment.
-        if (failed(cstSize) || !cstInnerSize || *cstSize % *cstInnerSize != 0) {
+        if ((failed(cstSize) || !cstInnerSize ||
+             *cstSize % *cstInnerSize != 0) &&
+            !(!failed(cstSize) && sz && *cstSize == *sz)) {
+          //llvm::dbgs() << "Dim #" << dim << ": ";
+          //llvm::dbgs() << failed(cstSize) << " " << cstInnerSize.has_value() << "\n";
+          //if (succeeded(cstSize) && cstInnerSize) {
+            //llvm::dbgs() << *cstSize << " / " << *cstInnerSize << "\n";
+          //}
+          //llvm::dbgs() << "sizes: " << sizes[dim];
           return failure();
         }
 
