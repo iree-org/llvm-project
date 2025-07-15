@@ -889,10 +889,12 @@ struct PackOpTiling
     ArrayRef<OpFoldResult> sizes(allSizes[0]);
 
     auto packOp = cast<PackOp>(op);
+#if 0
     // It is not trivial to infer dest tile from source tile if `packOp` has
     // padding semantic.
     if (packOp.getPaddingValue())
       return failure();
+#endif
 
     Location loc = packOp.getLoc();
 
@@ -988,7 +990,9 @@ struct PackOpTiling
         loc, packOp.getDest(), outputOffsets, outputSizes, strides);
     tiledOperands.push_back(outSlice);
 
-    assert(!packOp.getPaddingValue() && "Expect no padding semantic");
+    //assert(!packOp.getPaddingValue() && "Expect no padding semantic");
+    if (auto val = packOp.getPaddingValue())
+      tiledOperands.push_back(val);
     for (auto tile : packOp.getInnerTiles())
       tiledOperands.push_back(tile);
 
