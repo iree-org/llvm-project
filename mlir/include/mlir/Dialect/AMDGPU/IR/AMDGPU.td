@@ -861,7 +861,7 @@ def AMDGPU_WMMAOp :
 }
 
 def AMDGPU_GatherToLDSOp :
-    AMDGPU_Op<"gather_to_lds", [SameVariadicOperandSize]>,
+    AMDGPU_Op<"gather_to_lds", [AttrSizedOperandSegments]>,
     Arguments<(ins
                    Arg<AnyMemRef, "buffer to gather from", [MemRead]>:$src,
                    Variadic<Index>:$srcIndices,
@@ -896,6 +896,7 @@ def AMDGPU_GatherToLDSOp :
     $src `[` $srcIndices `]` `,` $dst `[` $dstIndices `]` attr-dict `:` $transferType `,` type($src) `,` type($dst)
   }];
   let hasVerifier = 1;
+  let hasCanonicalizer = 1;
 }
 
 def AMDGPU_TransposeLoadOp :
