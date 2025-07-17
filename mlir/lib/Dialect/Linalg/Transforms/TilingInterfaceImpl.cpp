@@ -893,6 +893,13 @@ struct PackOpTiling
     SmallVector<OpFoldResult> outerDimOffsets, outerDimSizes;
     DenseMap<int64_t, OpFoldResult> dimAndTileMapping =
         packOp.getDimAndTileMapping();
+    SmallVector<int64_t> outerShapeAfterPadding(
+        packOp.getDestType().getShape().take_front(packOp.getSourceRank()));
+    if (!packOp.getOuterDimsPerm().empty()) {
+      applyPermutationToVector(
+          outerShapeAfterPadding,
+          invertPermutationVector(packOp.getOuterDimsPerm()));
+    }
     for (auto dim : llvm::seq<int64_t>(packOp.getSourceRank())) {
       if (dimAndTileMapping.count(dim)) {
         FailureOr<int64_t> cstTileSize =
@@ -908,10 +915,10 @@ struct PackOpTiling
         // TODO: It could be untiled if the `srcDimSize` is dynamic. It is a
         // hard check to determine if a dimension is tiled or not.
         int64_t srcDimSize = packOp.getSourceType().getDimSize(dim);
-        int64_t destDimSize = packOp.getDestType().getDimSize(dim);
+        int64_t destDimSize = outerShapeAfterPadding[dim];
         bool isTiled = failed(cstTileSize) ||
                        ShapedType::isDynamic(srcDimSize) ||
-                       cstTileSize.value() != srcDimSize;
+                       cstTileSize.value() < srcDimSize;
         if (!isTiled) {
           outerDimOffsets.push_back(offsets[dim]);
           if (ShapedType::isStatic(destDimSize)) {
