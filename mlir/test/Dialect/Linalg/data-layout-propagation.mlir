@@ -1295,21 +1295,21 @@ func.func @no_bubble_up_pack_expanded_padding_through_expand_cannot_reassociate(
 
 // -----
 
-func.func @no_bubble_up_pack_extending_dimension_through_expand_cannot_reassociate(%arg0: tensor<32x64xf32>) -> tensor<8x4x16x8xf32> {
-  %empty = tensor.empty() : tensor<8x4x16x8xf32>
+func.func @bubble_up_pack_extending_dimension_through_expand_can_reassociate(%arg0: tensor<32x64xf32>) -> tensor<4x4x16x8xf32> {
+  %empty = tensor.empty() : tensor<4x4x16x8xf32>
   %expanded = tensor.expand_shape %arg0 [[0], [1, 2]] output_shape [32, 4, 16] : tensor<32x64xf32> into tensor<32x4x16xf32>
-  %pack = linalg.pack %expanded inner_dims_pos = [0] inner_tiles = [8] into %empty : tensor<32x4x16xf32> -> tensor<8x4x16x8xf32>
-  return %pack : tensor<8x4x16x8xf32>
+  %pack = linalg.pack %expanded inner_dims_pos = [0] inner_tiles = [8] into %empty : tensor<32x4x16xf32> -> tensor<4x4x16x8xf32>
+  return %pack : tensor<4x4x16x8xf32>
 }
-// CHECK-LABEL: func.func @no_bubble_up_pack_extending_dimension_through_expand_cannot_reassociate(
+// CHECK-LABEL: func.func @bubble_up_pack_extending_dimension_through_expand_can_reassociate(
 // CHECK-SAME:      %[[ARG0:[a-zA-Z0-9]+]]
-// CHECK:         %[[EMPTY:.+]] = tensor.empty() : tensor<8x4x16x8xf32>
-// CHECK:         %[[EXPANDED:.+]] = tensor.expand_shape %[[ARG0]] {{\[}}[0], [1, 2]]
-// CHECK-SAME:      output_shape [32, 4, 16] : tensor<32x64xf32> into tensor<32x4x16xf32>
-// CHECK:         %[[PACK:.+]] = linalg.pack %[[EXPANDED]]
+// CHECK:         %[[EMPTY:.+]] = tensor.empty() : tensor<4x64x8xf32>
+// CHECK:         %[[PACK:.+]] = linalg.pack %[[ARG0]]
 // CHECK-SAME:      inner_dims_pos = [0] inner_tiles = [8] into %[[EMPTY]]
-// CHECK-SAME:      : tensor<32x4x16xf32> -> tensor<8x4x16x8xf32>
-// CHECK:         return %[[PACK]] : tensor<8x4x16x8xf32>
+// CHECK-SAME:      : tensor<32x64xf32> -> tensor<4x64x8xf32>
+// CHECK:         %[[EXPANDED:.+]] = tensor.expand_shape %[[PACK]] {{\[}}[0], [1, 2], [3]]
+// CHECK-SAME:      output_shape [4, 4, 16, 8] : tensor<4x64x8xf32> into tensor<4x4x16x8xf32>
+// CHECK:         return %[[EXPANDED]] : tensor<4x4x16x8xf32>
 
 // -----
 

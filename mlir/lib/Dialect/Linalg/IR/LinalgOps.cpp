@@ -4601,8 +4601,8 @@ static bool isInvalidPackingPosSpecification(ArrayRef<int64_t> dimsPos,
 
 /// Returns true if the dimension of `sourceShape` is smaller than the dimension
 /// of the `limitShape`.
-static bool areAllInBound(ArrayRef<int64_t> sourceShape,
-                          ArrayRef<int64_t> limitShape) {
+static bool isCompatibleShape(ArrayRef<int64_t> sourceShape,
+                              ArrayRef<int64_t> limitShape) {
   assert(
       sourceShape.size() == limitShape.size() &&
       "expected source shape rank, and limit of the shape to have same rank");
@@ -4611,7 +4611,7 @@ static bool areAllInBound(ArrayRef<int64_t> sourceShape,
         int64_t sourceExtent = std::get<0>(it);
         int64_t limit = std::get<1>(it);
         return ShapedType::isDynamic(sourceExtent) ||
-               ShapedType::isDynamic(limit) || sourceExtent <= limit;
+               ShapedType::isDynamic(limit) || sourceExtent == limit;
       });
 }
 
@@ -4673,11 +4673,6 @@ static LogicalResult commonVerifierPackAndUnPackOp(OpTy packOrUnPack) {
   // represents full tiles.
   RankedTensorType expectedPackedType = PackOp::inferPackedType(
       unpackedType, packOrUnPack.getStaticTiles(), innerDimsPos, outerDimPerm);
-  if (!areAllInBound(expectedPackedType.getShape(), packedType.getShape())) {
-    return op->emitError("the shape of output is not large enough to hold the "
-                         "packed data. Expected at least ")
-           << expectedPackedType << ", got " << packedType;
-  }
   if (!llvm::all_of(
           llvm::zip(packedType.getShape().take_back(mixedTiles.size()),
                     mixedTiles),
@@ -4693,6 +4688,12 @@ static LogicalResult commonVerifierPackAndUnPackOp(OpTy packOrUnPack) {
           })) {
     return op->emitError("mismatch in inner tile sizes specified and shaped of "
                          "tiled dimension in the packed type");
+  }
+  if (!isCompatibleShape(expectedPackedType.getShape(),
+                          packedType.getShape())) {
+    return op->emitError("the shape of output is not large enough to hold the "
+                         "packed data. Expected at least ")
+           << expectedPackedType << ", got " << packedType;
   }
   return success();
 }
