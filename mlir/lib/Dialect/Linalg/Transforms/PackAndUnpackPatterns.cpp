@@ -10,6 +10,7 @@
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Utils/IndexingUtils.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/PatternMatch.h"
 
 namespace mlir {
@@ -219,6 +220,34 @@ public:
     if (auto paddingValue = packOp.getPaddingValue())
       if (!isEqualConstantIntOrValue(paddingValue, constantPaddingValue))
         return failure();
+
+    RankedTensorType srcType = packOp.getSourceType();
+    RankedTensorType destType = packOp.getDestType();
+    SmallVector<int64_t> outerShapeWithoutTranspose(
+        destType.getShape().take_front(srcType.getRank()));
+    if (!packOp.getOuterDimsPerm().empty()) {
+      applyPermutationToVector(
+          outerShapeWithoutTranspose,
+          invertPermutationVector(packOp.getOuterDimsPerm()));
+    }
+    for (auto [pos, tileSize, high] :
+         llvm::zip_equal(packOp.getInnerDimsPos(), packOp.getStaticInnerTiles(),
+                         padOp.getMixedHighPad())) {
+      if (srcType.isDynamicDim(pos))
+        return failure();
+      if (ShapedType::isDynamic(outerShapeWithoutTranspose[pos]))
+        return failure();
+      if (ShapedType::isDynamic(tileSize))
+        return failure();
+      std::optional<int64_t> cstHigh = getConstantIntValue(high);
+      if (!cstHigh)
+        return failure();
+      int64_t paddingSize =
+          outerShapeWithoutTranspose[pos] * tileSize - srcType.getDimSize(pos);
+      // Do not fold the ops if it requires extra padding sizes.
+      if (paddingSize + cstHigh.value() >= tileSize)
+        return failure();
+    }
 
     rewriter.replaceOpWithNewOp<PackOp>(
         packOp, padOp.getSource(), packOp.getDest(), packOp.getInnerDimsPos(),
