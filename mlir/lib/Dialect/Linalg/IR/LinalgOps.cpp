@@ -193,9 +193,10 @@ static void buildMatmulOp(OpBuilder &b, OperationState &state,
                           ArrayRef<AffineMap> indexingMaps) {
   // Initialize indexingMaps attribute, for MatmulOp.
   SmallVector<Attribute, 3> indexingMapsAttrVal;
-  indexingMapsAttrVal = llvm::map_to_vector(
-      MatmulOp::getDefaultIndexingMaps(b.getContext()),
-      [](AffineMap map) -> Attribute { return AffineMapAttr::get(map); });
+  indexingMapsAttrVal =
+      llvm::map_to_vector(indexingMaps, [](AffineMap map) -> Attribute {
+        return AffineMapAttr::get(map);
+      });
   state.addAttribute("indexing_maps", b.getArrayAttr(indexingMapsAttrVal));
   return buildStructuredOp(b, state, resultTensorTypes, inputs, outputs,
                            attributes, regionBuilder);
@@ -3879,6 +3880,248 @@ void MatmulOp::getEffects(
 
 Speculation::Speculatability MatmulOp::getSpeculatability() {
   return getGenericSpeculatabilityImpl(cast<LinalgOp>(getOperation()));
+}
+
+static FailureOr<SmallVector<SmallVector<int64_t>>>
+getAffineResultPositions(ArrayAttr maps) {
+  SmallVector<SmallVector<int64_t>> positions;
+  for (auto map : maps) {
+    AffineMapAttr attr = dyn_cast<AffineMapAttr>(map);
+    if (!attr)
+      return failure();
+    SmallVector<int64_t> pos;
+    for (auto result : attr.getAffineMap().getResults()) {
+      auto dim = dyn_cast<AffineDimExpr>(result);
+      if (!dim)
+        return failure();
+      pos.push_back(dim.getPosition());
+    }
+    positions.push_back(pos);
+  }
+  return positions;
+}
+
+SmallVector<AffineMap> MatmulTransposeAOp::getAffineMaps(OpBuilder &builder) {
+  AffineExpr d0, d1, d2;
+  MLIRContext *context = builder.getContext();
+  bindDims(context, d0, d1, d2);
+  AffineMap mapLHS = AffineMap::get(3, 0, {d2, d0}, context);
+  AffineMap mapRHS = AffineMap::get(3, 0, {d2, d1}, context);
+  AffineMap mapOut = AffineMap::get(3, 0, {d0, d1}, context);
+  return {mapLHS, mapRHS, mapOut};
+}
+
+bool MatmulTransposeAOp::isExpectedAffineMaps(Attribute attr) {
+  ArrayAttr maps = dyn_cast<ArrayAttr>(attr);
+  if (!maps)
+    return false;
+  if (maps.size() != 3)
+    return false;
+  auto positions = getAffineResultPositions(maps);
+  if (failed(positions))
+    return false;
+  return (*positions)[0] == SmallVector<int64_t>{2, 0} &&
+         (*positions)[1] == SmallVector<int64_t>{2, 1} &&
+         (*positions)[2] == SmallVector<int64_t>{0, 1};
+}
+void linalg::MatmulTransposeAOp::build(OpBuilder &builder,
+                                       OperationState &result,
+                                       ValueRange inputs, ValueRange outputs,
+                                       ArrayRef<NamedAttribute> attributes) {
+  buildMatmulOp(builder, result, std::nullopt, inputs, outputs, attributes,
+                MatmulOp::getRegionBuilder(), getAffineMaps(builder));
+}
+
+void linalg::MatmulTransposeAOp::build(OpBuilder &builder,
+                                       OperationState &result,
+                                       TypeRange resultTensorTypes,
+                                       ValueRange inputs, ValueRange outputs,
+                                       ArrayRef<NamedAttribute> attributes) {
+  buildMatmulOp(builder, result, resultTensorTypes, inputs, outputs, attributes,
+                MatmulOp::getRegionBuilder(), getAffineMaps(builder));
+}
+
+void linalg::MatmulTransposeAOp::build(OpBuilder &builder,
+                                       OperationState &result,
+                                       TypeRange resultTensorTypes,
+                                       ValueRange inputs, ValueRange outputs,
+                                       Attribute cast,
+                                       ArrayRef<NamedAttribute> attributes) {
+  result.addAttribute("cast", cast);
+  buildMatmulOp(builder, result, resultTensorTypes, inputs, outputs, attributes,
+                MatmulOp::getRegionBuilder(), getAffineMaps(builder));
+}
+
+bool MatmulTransposeAOp::classof(Operation *op) {
+  return dyn_cast_or_null<linalg::MatmulOp>(op) &&
+         MatmulTransposeAOp::isExpectedAffineMaps(op->getAttr("indexing_maps"));
+}
+
+SmallVector<AffineMap> MatmulTransposeBOp::getAffineMaps(OpBuilder &builder) {
+  AffineExpr d0, d1, d2;
+  MLIRContext *context = builder.getContext();
+  bindDims(context, d0, d1, d2);
+  AffineMap mapLHS = AffineMap::get(3, 0, {d0, d2}, context);
+  AffineMap mapRHS = AffineMap::get(3, 0, {d1, d2}, context);
+  AffineMap mapOut = AffineMap::get(3, 0, {d0, d1}, context);
+  return {mapLHS, mapRHS, mapOut};
+}
+
+bool MatmulTransposeBOp::isExpectedAffineMaps(Attribute attr) {
+  ArrayAttr maps = dyn_cast<ArrayAttr>(attr);
+  if (!maps)
+    return false;
+  if (maps.size() != 3)
+    return false;
+  auto positions = getAffineResultPositions(maps);
+  if (failed(positions))
+    return false;
+  return (*positions)[0] == SmallVector<int64_t>{0, 2} &&
+         (*positions)[1] == SmallVector<int64_t>{1, 2} &&
+         (*positions)[2] == SmallVector<int64_t>{0, 1};
+}
+
+void linalg::MatmulTransposeBOp::build(OpBuilder &builder,
+                                       OperationState &result,
+                                       ValueRange inputs, ValueRange outputs,
+                                       ArrayRef<NamedAttribute> attributes) {
+  buildMatmulOp(builder, result, std::nullopt, inputs, outputs, attributes,
+                MatmulOp::getRegionBuilder(), getAffineMaps(builder));
+}
+
+void linalg::MatmulTransposeBOp::build(OpBuilder &builder,
+                                       OperationState &result,
+                                       TypeRange resultTensorTypes,
+                                       ValueRange inputs, ValueRange outputs,
+                                       ArrayRef<NamedAttribute> attributes) {
+  buildMatmulOp(builder, result, resultTensorTypes, inputs, outputs, attributes,
+                MatmulOp::getRegionBuilder(), getAffineMaps(builder));
+}
+
+void linalg::MatmulTransposeBOp::build(OpBuilder &builder,
+                                       OperationState &result,
+                                       TypeRange resultTensorTypes,
+                                       ValueRange inputs, ValueRange outputs,
+                                       Attribute cast,
+                                       ArrayRef<NamedAttribute> attributes) {
+  result.addAttribute("cast", cast);
+  buildMatmulOp(builder, result, resultTensorTypes, inputs, outputs, attributes,
+                MatmulOp::getRegionBuilder(), getAffineMaps(builder));
+}
+
+bool MatmulTransposeBOp::classof(Operation *op) {
+  return dyn_cast_or_null<linalg::MatmulOp>(op) &&
+         MatmulTransposeBOp::isExpectedAffineMaps(op->getAttr("indexing_maps"));
+}
+
+SmallVector<AffineMap>
+BatchMatmulTransposeAOp::getAffineMaps(OpBuilder &builder) {
+  AffineExpr d0, d1, d2, d3;
+  MLIRContext *context = builder.getContext();
+  bindDims(context, d0, d1, d2, d3);
+  AffineMap mapLHS = AffineMap::get(4, 0, {d0, d3, d1}, context);
+  AffineMap mapRHS = AffineMap::get(4, 0, {d0, d3, d2}, context);
+  AffineMap mapOut = AffineMap::get(4, 0, {d0, d1, d2}, context);
+  return {mapLHS, mapRHS, mapOut};
+}
+
+bool BatchMatmulTransposeAOp::isExpectedAffineMaps(Attribute attr) {
+  ArrayAttr maps = dyn_cast<ArrayAttr>(attr);
+  if (!maps)
+    return false;
+  if (maps.size() != 3)
+    return false;
+  auto positions = getAffineResultPositions(maps);
+  if (failed(positions))
+    return false;
+  return (*positions)[0] == SmallVector<int64_t>{0, 3, 1} &&
+         (*positions)[1] == SmallVector<int64_t>{0, 3, 2} &&
+         (*positions)[2] == SmallVector<int64_t>{0, 1, 2};
+}
+
+void linalg::BatchMatmulTransposeAOp::build(
+    OpBuilder &builder, OperationState &result, ValueRange inputs,
+    ValueRange outputs, ArrayRef<NamedAttribute> attributes) {
+  buildMatmulOp(builder, result, std::nullopt, inputs, outputs, attributes,
+                BatchMatmulOp::getRegionBuilder(), getAffineMaps(builder));
+}
+
+void linalg::BatchMatmulTransposeAOp::build(
+    OpBuilder &builder, OperationState &result, TypeRange resultTensorTypes,
+    ValueRange inputs, ValueRange outputs,
+    ArrayRef<NamedAttribute> attributes) {
+  buildMatmulOp(builder, result, resultTensorTypes, inputs, outputs, attributes,
+                BatchMatmulOp::getRegionBuilder(), getAffineMaps(builder));
+}
+
+void linalg::BatchMatmulTransposeAOp::build(
+    OpBuilder &builder, OperationState &result, TypeRange resultTensorTypes,
+    ValueRange inputs, ValueRange outputs, Attribute cast,
+    ArrayRef<NamedAttribute> attributes) {
+  result.addAttribute("cast", cast);
+  buildMatmulOp(builder, result, resultTensorTypes, inputs, outputs, attributes,
+                BatchMatmulOp::getRegionBuilder(), getAffineMaps(builder));
+}
+
+bool BatchMatmulTransposeAOp::classof(Operation *op) {
+  return dyn_cast_or_null<linalg::BatchMatmulOp>(op) &&
+         BatchMatmulTransposeAOp::isExpectedAffineMaps(
+             op->getAttr("indexing_maps"));
+}
+
+SmallVector<AffineMap>
+BatchMatmulTransposeBOp::getAffineMaps(OpBuilder &builder) {
+  AffineExpr d0, d1, d2, d3;
+  MLIRContext *context = builder.getContext();
+  bindDims(context, d0, d1, d2, d3);
+  AffineMap mapLHS = AffineMap::get(4, 0, {d0, d1, d3}, context);
+  AffineMap mapRHS = AffineMap::get(4, 0, {d0, d2, d3}, context);
+  AffineMap mapOut = AffineMap::get(4, 0, {d0, d1, d2}, context);
+  return {mapLHS, mapRHS, mapOut};
+}
+
+bool BatchMatmulTransposeBOp::isExpectedAffineMaps(Attribute attr) {
+  ArrayAttr maps = dyn_cast<ArrayAttr>(attr);
+  if (!maps)
+    return false;
+  if (maps.size() != 3)
+    return false;
+  auto positions = getAffineResultPositions(maps);
+  if (failed(positions))
+    return false;
+  return (*positions)[0] == SmallVector<int64_t>{0, 1, 3} &&
+         (*positions)[1] == SmallVector<int64_t>{0, 2, 3} &&
+         (*positions)[2] == SmallVector<int64_t>{0, 1, 2};
+}
+
+void linalg::BatchMatmulTransposeBOp::build(
+    OpBuilder &builder, OperationState &result, ValueRange inputs,
+    ValueRange outputs, ArrayRef<NamedAttribute> attributes) {
+  buildMatmulOp(builder, result, std::nullopt, inputs, outputs, attributes,
+                BatchMatmulOp::getRegionBuilder(), getAffineMaps(builder));
+}
+
+void linalg::BatchMatmulTransposeBOp::build(
+    OpBuilder &builder, OperationState &result, TypeRange resultTensorTypes,
+    ValueRange inputs, ValueRange outputs,
+    ArrayRef<NamedAttribute> attributes) {
+  buildMatmulOp(builder, result, resultTensorTypes, inputs, outputs, attributes,
+                BatchMatmulOp::getRegionBuilder(), getAffineMaps(builder));
+}
+
+void linalg::BatchMatmulTransposeBOp::build(
+    OpBuilder &builder, OperationState &result, TypeRange resultTensorTypes,
+    ValueRange inputs, ValueRange outputs, Attribute cast,
+    ArrayRef<NamedAttribute> attributes) {
+  result.addAttribute("cast", cast);
+  buildMatmulOp(builder, result, resultTensorTypes, inputs, outputs, attributes,
+                BatchMatmulOp::getRegionBuilder(), getAffineMaps(builder));
+}
+
+bool BatchMatmulTransposeBOp::classof(Operation *op) {
+  return dyn_cast_or_null<linalg::BatchMatmulOp>(op) &&
+         BatchMatmulTransposeBOp::isExpectedAffineMaps(
+             op->getAttr("indexing_maps"));
 }
 
 //===----------------------------------------------------------------------===//
