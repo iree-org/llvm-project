@@ -521,7 +521,7 @@ public:
     auto newOp =
         OpTy::create(*builder, op->getLoc(), std::forward<Args>(args)...);
     replaceOp(op, newOp.getOperation());
-    return newOp;
+    return static_cast<OpTy>(newOp);
   }
 
   /// This method erases an operation that is known to have no uses.
