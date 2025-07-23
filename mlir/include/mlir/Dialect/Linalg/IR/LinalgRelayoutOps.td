@@ -150,9 +150,15 @@ def Linalg_PackOp : Linalg_RelayoutOp<"pack", [
 
     `padding_value` specifies a padding value at the boundary on non-perfectly
     divisible dimensions. Padding is optional:
-    - If absent, it is UB if the tile does not perfectly divide the dimension.
+    - If absent, it is assumed that for all inner tiles,
+      `shape(source)[inner_dims_pos[i]] % inner_tiles[i] == 0`, i.e. all inner
+      tiles divide perfectly the corresponding outer dimension in the result
+      tensor.
     - If present, it will pad along high dimensions (high-padding) to make the
-      tile complete.
+      tile complete. Note that it is not allowed to have artificial padding that
+      is not strictly required by linalg.pack (i.e., padding past what is needed
+      to complete the last tile along each packed dimension). It is UB if extra
+      padding is requested.
 
     Example:
     ```mlir
@@ -166,6 +172,15 @@ def Linalg_PackOp : Linalg_RelayoutOp<"pack", [
     // element is added at the end.
     //
     // Note: Only tiled dimensions can be padded.
+    ```
+
+    Invalid example that has artificial padding:
+    ```mlir
+    %0 = linalg.pack %src padding_value(%cst : f32) inner_dims_pos = [0]
+        inner_tiles = [8] into %dest
+        : tensor<9xf32> -> tensor<3x8xf32>
+    //                             \
+    //            expect tensor<2x8xf32> because CeilDiv(9, 8) = 2
     ```
   }];
   let arguments = (ins AnyRankedTensor:$source,
