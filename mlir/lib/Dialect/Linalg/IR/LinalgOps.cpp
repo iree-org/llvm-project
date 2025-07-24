@@ -3952,6 +3952,67 @@ void linalg::MatmulTransposeAOp::build(OpBuilder &builder,
                 MatmulOp::getRegionBuilder(), getAffineMaps(builder));
 }
 
+linalg::MatmulTransposeAOp
+linalg::MatmulTransposeAOp::create(OpBuilder &builder, Location loc,
+                                   ValueRange inputs, ValueRange outputs,
+                                   ArrayRef<NamedAttribute> attributes) {
+  mlir::OperationState state(loc, getOperationName());
+  build(builder, state, inputs, outputs, attributes);
+  auto result = dyn_cast<MatmulTransposeAOp>(builder.create(state));
+  assert(result && "builder didn't return the right type");
+  return result;
+}
+
+linalg::MatmulTransposeAOp
+linalg::MatmulTransposeAOp::create(ImplicitLocOpBuilder &builder,
+                                   ValueRange inputs, ValueRange outputs,
+                                   ArrayRef<NamedAttribute> attributes) {
+  return create(builder, builder.getLoc(), inputs, outputs, attributes);
+  ;
+}
+
+linalg::MatmulTransposeAOp
+linalg::MatmulTransposeAOp::create(OpBuilder &builder, Location loc,
+                                   TypeRange resultTensorTypes,
+                                   ValueRange inputs, ValueRange outputs,
+                                   ArrayRef<NamedAttribute> attributes) {
+  mlir::OperationState state(loc, getOperationName());
+  build(builder, state, resultTensorTypes, inputs, outputs, attributes);
+  auto result = dyn_cast<MatmulTransposeAOp>(builder.create(state));
+  assert(result && "builder didn't return the right type");
+  return result;
+}
+
+linalg::MatmulTransposeAOp
+linalg::MatmulTransposeAOp::create(ImplicitLocOpBuilder &builder,
+                                   TypeRange resultTensorTypes,
+                                   ValueRange inputs, ValueRange outputs,
+                                   ArrayRef<NamedAttribute> attributes) {
+  return create(builder, builder.getLoc(), resultTensorTypes, inputs, outputs,
+                attributes);
+  ;
+}
+
+linalg::MatmulTransposeAOp linalg::MatmulTransposeAOp::create(
+    OpBuilder &builder, Location loc, TypeRange resultTensorTypes,
+    ValueRange inputs, ValueRange outputs, Attribute cast,
+    ArrayRef<NamedAttribute> attributes) {
+  mlir::OperationState state(loc, getOperationName());
+  build(builder, state, resultTensorTypes, inputs, outputs, cast, attributes);
+  auto result = dyn_cast<MatmulTransposeAOp>(builder.create(state));
+  assert(result && "builder didn't return the right type");
+  return result;
+}
+
+linalg::MatmulTransposeAOp linalg::MatmulTransposeAOp::create(
+    ImplicitLocOpBuilder &builder, TypeRange resultTensorTypes,
+    ValueRange inputs, ValueRange outputs, Attribute cast,
+    ArrayRef<NamedAttribute> attributes) {
+  return create(builder, builder.getLoc(), resultTensorTypes, inputs, outputs,
+                cast, attributes);
+  ;
+}
+
 bool MatmulTransposeAOp::classof(Operation *op) {
   return dyn_cast_or_null<linalg::MatmulOp>(op) &&
          MatmulTransposeAOp::isExpectedAffineMaps(op->getAttr("indexing_maps"));
@@ -4009,6 +4070,67 @@ void linalg::MatmulTransposeBOp::build(OpBuilder &builder,
                 MatmulOp::getRegionBuilder(), getAffineMaps(builder));
 }
 
+linalg::MatmulTransposeBOp
+linalg::MatmulTransposeBOp::create(OpBuilder &builder, Location loc,
+                                   ValueRange inputs, ValueRange outputs,
+                                   ArrayRef<NamedAttribute> attributes) {
+  mlir::OperationState state(loc, getOperationName());
+  build(builder, state, inputs, outputs, attributes);
+  auto result = dyn_cast<MatmulTransposeBOp>(builder.create(state));
+  assert(result && "builder didn't return the right type");
+  return result;
+}
+
+linalg::MatmulTransposeBOp
+linalg::MatmulTransposeBOp::create(ImplicitLocOpBuilder &builder,
+                                   ValueRange inputs, ValueRange outputs,
+                                   ArrayRef<NamedAttribute> attributes) {
+  return create(builder, builder.getLoc(), inputs, outputs, attributes);
+  ;
+}
+
+linalg::MatmulTransposeBOp
+linalg::MatmulTransposeBOp::create(OpBuilder &builder, Location loc,
+                                   TypeRange resultTensorTypes,
+                                   ValueRange inputs, ValueRange outputs,
+                                   ArrayRef<NamedAttribute> attributes) {
+  mlir::OperationState state(loc, getOperationName());
+  build(builder, state, resultTensorTypes, inputs, outputs, attributes);
+  auto result = dyn_cast<MatmulTransposeBOp>(builder.create(state));
+  assert(result && "builder didn't return the right type");
+  return result;
+}
+
+linalg::MatmulTransposeBOp
+linalg::MatmulTransposeBOp::create(ImplicitLocOpBuilder &builder,
+                                   TypeRange resultTensorTypes,
+                                   ValueRange inputs, ValueRange outputs,
+                                   ArrayRef<NamedAttribute> attributes) {
+  return create(builder, builder.getLoc(), resultTensorTypes, inputs, outputs,
+                attributes);
+  ;
+}
+
+linalg::MatmulTransposeBOp linalg::MatmulTransposeBOp::create(
+    OpBuilder &builder, Location loc, TypeRange resultTensorTypes,
+    ValueRange inputs, ValueRange outputs, Attribute cast,
+    ArrayRef<NamedAttribute> attributes) {
+  mlir::OperationState state(loc, getOperationName());
+  build(builder, state, resultTensorTypes, inputs, outputs, cast, attributes);
+  auto result = dyn_cast<MatmulTransposeBOp>(builder.create(state));
+  assert(result && "builder didn't return the right type");
+  return result;
+}
+
+linalg::MatmulTransposeBOp linalg::MatmulTransposeBOp::create(
+    ImplicitLocOpBuilder &builder, TypeRange resultTensorTypes,
+    ValueRange inputs, ValueRange outputs, Attribute cast,
+    ArrayRef<NamedAttribute> attributes) {
+  return create(builder, builder.getLoc(), resultTensorTypes, inputs, outputs,
+                cast, attributes);
+  ;
+}
+
 bool MatmulTransposeBOp::classof(Operation *op) {
   return dyn_cast_or_null<linalg::MatmulOp>(op) &&
          MatmulTransposeBOp::isExpectedAffineMaps(op->getAttr("indexing_maps"));
@@ -4061,6 +4183,67 @@ void linalg::BatchMatmulTransposeAOp::build(
   result.addAttribute("cast", cast);
   buildMatmulOp(builder, result, resultTensorTypes, inputs, outputs, attributes,
                 BatchMatmulOp::getRegionBuilder(), getAffineMaps(builder));
+}
+
+linalg::BatchMatmulTransposeAOp
+linalg::BatchMatmulTransposeAOp::create(OpBuilder &builder, Location loc,
+                                        ValueRange inputs, ValueRange outputs,
+                                        ArrayRef<NamedAttribute> attributes) {
+  mlir::OperationState state(loc, getOperationName());
+  build(builder, state, inputs, outputs, attributes);
+  auto result = dyn_cast<BatchMatmulTransposeAOp>(builder.create(state));
+  assert(result && "builder didn't return the right type");
+  return result;
+}
+
+linalg::BatchMatmulTransposeAOp
+linalg::BatchMatmulTransposeAOp::create(ImplicitLocOpBuilder &builder,
+                                        ValueRange inputs, ValueRange outputs,
+                                        ArrayRef<NamedAttribute> attributes) {
+  return create(builder, builder.getLoc(), inputs, outputs, attributes);
+  ;
+}
+
+linalg::BatchMatmulTransposeAOp
+linalg::BatchMatmulTransposeAOp::create(OpBuilder &builder, Location loc,
+                                        TypeRange resultTensorTypes,
+                                        ValueRange inputs, ValueRange outputs,
+                                        ArrayRef<NamedAttribute> attributes) {
+  mlir::OperationState state(loc, getOperationName());
+  build(builder, state, resultTensorTypes, inputs, outputs, attributes);
+  auto result = dyn_cast<BatchMatmulTransposeAOp>(builder.create(state));
+  assert(result && "builder didn't return the right type");
+  return result;
+}
+
+linalg::BatchMatmulTransposeAOp
+linalg::BatchMatmulTransposeAOp::create(ImplicitLocOpBuilder &builder,
+                                        TypeRange resultTensorTypes,
+                                        ValueRange inputs, ValueRange outputs,
+                                        ArrayRef<NamedAttribute> attributes) {
+  return create(builder, builder.getLoc(), resultTensorTypes, inputs, outputs,
+                attributes);
+  ;
+}
+
+linalg::BatchMatmulTransposeAOp linalg::BatchMatmulTransposeAOp::create(
+    OpBuilder &builder, Location loc, TypeRange resultTensorTypes,
+    ValueRange inputs, ValueRange outputs, Attribute cast,
+    ArrayRef<NamedAttribute> attributes) {
+  mlir::OperationState state(loc, getOperationName());
+  build(builder, state, resultTensorTypes, inputs, outputs, cast, attributes);
+  auto result = dyn_cast<BatchMatmulTransposeAOp>(builder.create(state));
+  assert(result && "builder didn't return the right type");
+  return result;
+}
+
+linalg::BatchMatmulTransposeAOp linalg::BatchMatmulTransposeAOp::create(
+    ImplicitLocOpBuilder &builder, TypeRange resultTensorTypes,
+    ValueRange inputs, ValueRange outputs, Attribute cast,
+    ArrayRef<NamedAttribute> attributes) {
+  return create(builder, builder.getLoc(), resultTensorTypes, inputs, outputs,
+                cast, attributes);
+  ;
 }
 
 bool BatchMatmulTransposeAOp::classof(Operation *op) {
@@ -4116,6 +4299,67 @@ void linalg::BatchMatmulTransposeBOp::build(
   result.addAttribute("cast", cast);
   buildMatmulOp(builder, result, resultTensorTypes, inputs, outputs, attributes,
                 BatchMatmulOp::getRegionBuilder(), getAffineMaps(builder));
+}
+
+linalg::BatchMatmulTransposeBOp
+linalg::BatchMatmulTransposeBOp::create(OpBuilder &builder, Location loc,
+                                        ValueRange inputs, ValueRange outputs,
+                                        ArrayRef<NamedAttribute> attributes) {
+  mlir::OperationState state(loc, getOperationName());
+  build(builder, state, inputs, outputs, attributes);
+  auto result = dyn_cast<BatchMatmulTransposeBOp>(builder.create(state));
+  assert(result && "builder didn't return the right type");
+  return result;
+}
+
+linalg::BatchMatmulTransposeBOp
+linalg::BatchMatmulTransposeBOp::create(ImplicitLocOpBuilder &builder,
+                                        ValueRange inputs, ValueRange outputs,
+                                        ArrayRef<NamedAttribute> attributes) {
+  return create(builder, builder.getLoc(), inputs, outputs, attributes);
+  ;
+}
+
+linalg::BatchMatmulTransposeBOp
+linalg::BatchMatmulTransposeBOp::create(OpBuilder &builder, Location loc,
+                                        TypeRange resultTensorTypes,
+                                        ValueRange inputs, ValueRange outputs,
+                                        ArrayRef<NamedAttribute> attributes) {
+  mlir::OperationState state(loc, getOperationName());
+  build(builder, state, resultTensorTypes, inputs, outputs, attributes);
+  auto result = dyn_cast<BatchMatmulTransposeBOp>(builder.create(state));
+  assert(result && "builder didn't return the right type");
+  return result;
+}
+
+linalg::BatchMatmulTransposeBOp
+linalg::BatchMatmulTransposeBOp::create(ImplicitLocOpBuilder &builder,
+                                        TypeRange resultTensorTypes,
+                                        ValueRange inputs, ValueRange outputs,
+                                        ArrayRef<NamedAttribute> attributes) {
+  return create(builder, builder.getLoc(), resultTensorTypes, inputs, outputs,
+                attributes);
+  ;
+}
+
+linalg::BatchMatmulTransposeBOp linalg::BatchMatmulTransposeBOp::create(
+    OpBuilder &builder, Location loc, TypeRange resultTensorTypes,
+    ValueRange inputs, ValueRange outputs, Attribute cast,
+    ArrayRef<NamedAttribute> attributes) {
+  mlir::OperationState state(loc, getOperationName());
+  build(builder, state, resultTensorTypes, inputs, outputs, cast, attributes);
+  auto result = dyn_cast<BatchMatmulTransposeBOp>(builder.create(state));
+  assert(result && "builder didn't return the right type");
+  return result;
+}
+
+linalg::BatchMatmulTransposeBOp linalg::BatchMatmulTransposeBOp::create(
+    ImplicitLocOpBuilder &builder, TypeRange resultTensorTypes,
+    ValueRange inputs, ValueRange outputs, Attribute cast,
+    ArrayRef<NamedAttribute> attributes) {
+  return create(builder, builder.getLoc(), resultTensorTypes, inputs, outputs,
+                cast, attributes);
+  ;
 }
 
 bool BatchMatmulTransposeBOp::classof(Operation *op) {

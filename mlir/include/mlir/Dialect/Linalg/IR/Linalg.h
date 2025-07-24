@@ -159,18 +159,42 @@ public:
   static void build(OpBuilder &builder, OperationState &result,
                     ValueRange inputs, ValueRange outputs,
                     ArrayRef<NamedAttribute> attributes = {});
+  static MatmulTransposeAOp create(OpBuilder &builder, Location loc,
+                                   ValueRange inputs, ValueRange outputs,
+                                   ArrayRef<NamedAttribute> attributes = {});
+  static MatmulTransposeAOp create(ImplicitLocOpBuilder &builder,
+                                   ValueRange inputs, ValueRange outputs,
+                                   ArrayRef<NamedAttribute> attributes = {});
 
   /// Build a transpose A matmul with a specific result type.
   static void build(OpBuilder &builder, OperationState &result,
                     TypeRange resultTensorTypes, ValueRange inputs,
                     ValueRange outputs,
                     ArrayRef<NamedAttribute> attributes = {});
+  static MatmulTransposeAOp create(OpBuilder &builder, Location loc,
+                                   TypeRange resultTensorTypes,
+                                   ValueRange inputs, ValueRange outputs,
+                                   ArrayRef<NamedAttribute> attributes = {});
+  static MatmulTransposeAOp create(ImplicitLocOpBuilder &builder,
+                                   TypeRange resultTensorTypes,
+                                   ValueRange inputs, ValueRange outputs,
+                                   ArrayRef<NamedAttribute> attributes = {});
 
   /// Build a transpose A matmul with a specific result type and a cast type.
   static void build(OpBuilder &builder, OperationState &result,
                     TypeRange resultTensorTypes, ValueRange inputs,
                     ValueRange outputs, Attribute cast,
                     ArrayRef<NamedAttribute> attributes = {});
+  static MatmulTransposeAOp create(OpBuilder &builder, Location loc,
+                                   TypeRange resultTensorTypes,
+                                   ValueRange inputs, ValueRange outputs,
+                                   Attribute cast,
+                                   ArrayRef<NamedAttribute> attributes = {});
+  static MatmulTransposeAOp create(ImplicitLocOpBuilder &builder,
+                                   TypeRange resultTensorTypes,
+                                   ValueRange inputs, ValueRange outputs,
+                                   Attribute cast,
+                                   ArrayRef<NamedAttribute> attributes = {});
 
   /// Checks if the affine map is the expected one for this operation
   static bool isExpectedAffineMaps(Attribute attr);
@@ -191,18 +215,42 @@ public:
   static void build(OpBuilder &builder, OperationState &result,
                     ValueRange inputs, ValueRange outputs,
                     ArrayRef<NamedAttribute> attributes = {});
+  static MatmulTransposeBOp create(OpBuilder &builder, Location loc,
+                                   ValueRange inputs, ValueRange outputs,
+                                   ArrayRef<NamedAttribute> attributes = {});
+  static MatmulTransposeBOp create(ImplicitLocOpBuilder &builder,
+                                   ValueRange inputs, ValueRange outputs,
+                                   ArrayRef<NamedAttribute> attributes = {});
 
   /// Build a transpose B matmul with a specific result type.
   static void build(OpBuilder &builder, OperationState &result,
                     TypeRange resultTensorTypes, ValueRange inputs,
                     ValueRange outputs,
                     ArrayRef<NamedAttribute> attributes = {});
+  static MatmulTransposeBOp create(OpBuilder &builder, Location loc,
+                                   TypeRange resultTensorTypes,
+                                   ValueRange inputs, ValueRange outputs,
+                                   ArrayRef<NamedAttribute> attributes = {});
+  static MatmulTransposeBOp create(ImplicitLocOpBuilder &builder,
+                                   TypeRange resultTensorTypes,
+                                   ValueRange inputs, ValueRange outputs,
+                                   ArrayRef<NamedAttribute> attributes = {});
 
   /// Build a transpose B matmul with a specific result type and a cast type.
   static void build(OpBuilder &builder, OperationState &result,
                     TypeRange resultTensorTypes, ValueRange inputs,
                     ValueRange outputs, Attribute cast,
                     ArrayRef<NamedAttribute> attributes = {});
+  static MatmulTransposeBOp create(OpBuilder &builder, Location loc,
+                                   TypeRange resultTensorTypes,
+                                   ValueRange inputs, ValueRange outputs,
+                                   Attribute cast,
+                                   ArrayRef<NamedAttribute> attributes = {});
+  static MatmulTransposeBOp create(ImplicitLocOpBuilder &builder,
+                                   TypeRange resultTensorTypes,
+                                   ValueRange inputs, ValueRange outputs,
+                                   Attribute cast,
+                                   ArrayRef<NamedAttribute> attributes = {});
 
   /// Checks if the affine map is the expected one for this operation
   static bool isExpectedAffineMaps(Attribute attr);
@@ -224,18 +272,40 @@ public:
   static void build(OpBuilder &builder, OperationState &result,
                     ValueRange inputs, ValueRange outputs,
                     ArrayRef<NamedAttribute> attributes = {});
+  static BatchMatmulTransposeAOp
+  create(OpBuilder &builder, Location loc, ValueRange inputs,
+         ValueRange outputs, ArrayRef<NamedAttribute> attributes = {});
+  static BatchMatmulTransposeAOp
+  create(ImplicitLocOpBuilder &builder, ValueRange inputs, ValueRange outputs,
+         ArrayRef<NamedAttribute> attributes = {});
 
   /// Build a transpose A matmul with a specific result type.
   static void build(OpBuilder &builder, OperationState &result,
                     TypeRange resultTensorTypes, ValueRange inputs,
                     ValueRange outputs,
                     ArrayRef<NamedAttribute> attributes = {});
+  static BatchMatmulTransposeAOp
+  create(OpBuilder &builder, Location loc, TypeRange resultTensorTypes,
+         ValueRange inputs, ValueRange outputs,
+         ArrayRef<NamedAttribute> attributes = {});
+  static BatchMatmulTransposeAOp
+  create(ImplicitLocOpBuilder &builder, TypeRange resultTensorTypes,
+         ValueRange inputs, ValueRange outputs,
+         ArrayRef<NamedAttribute> attributes = {});
 
   /// Build a transpose A matmul with a specific result type and a cast type.
   static void build(OpBuilder &builder, OperationState &result,
                     TypeRange resultTensorTypes, ValueRange inputs,
                     ValueRange outputs, Attribute cast,
                     ArrayRef<NamedAttribute> attributes = {});
+  static BatchMatmulTransposeAOp
+  create(OpBuilder &builder, Location loc, TypeRange resultTensorTypes,
+         ValueRange inputs, ValueRange outputs, Attribute cast,
+         ArrayRef<NamedAttribute> attributes = {});
+  static BatchMatmulTransposeAOp
+  create(ImplicitLocOpBuilder &builder, TypeRange resultTensorTypes,
+         ValueRange inputs, ValueRange outputs, Attribute cast,
+         ArrayRef<NamedAttribute> attributes = {});
 
   /// Checks if the affine map is the expected one for this operation
   static bool isExpectedAffineMaps(Attribute attr);
@@ -257,18 +327,40 @@ public:
   static void build(OpBuilder &builder, OperationState &result,
                     ValueRange inputs, ValueRange outputs,
                     ArrayRef<NamedAttribute> attributes = {});
+  static BatchMatmulTransposeBOp
+  create(OpBuilder &builder, Location loc, ValueRange inputs,
+         ValueRange outputs, ArrayRef<NamedAttribute> attributes = {});
+  static BatchMatmulTransposeBOp
+  create(ImplicitLocOpBuilder &builder, ValueRange inputs, ValueRange outputs,
+         ArrayRef<NamedAttribute> attributes = {});
 
   /// Build a transpose A matmul with a specific result type.
   static void build(OpBuilder &builder, OperationState &result,
                     TypeRange resultTensorTypes, ValueRange inputs,
                     ValueRange outputs,
                     ArrayRef<NamedAttribute> attributes = {});
+  static BatchMatmulTransposeBOp
+  create(OpBuilder &builder, Location loc, TypeRange resultTensorTypes,
+         ValueRange inputs, ValueRange outputs,
+         ArrayRef<NamedAttribute> attributes = {});
+  static BatchMatmulTransposeBOp
+  create(ImplicitLocOpBuilder &builder, TypeRange resultTensorTypes,
+         ValueRange inputs, ValueRange outputs,
+         ArrayRef<NamedAttribute> attributes = {});
 
   /// Build a transpose A matmul with a specific result type and a cast type.
   static void build(OpBuilder &builder, OperationState &result,
                     TypeRange resultTensorTypes, ValueRange inputs,
                     ValueRange outputs, Attribute cast,
                     ArrayRef<NamedAttribute> attributes = {});
+  static BatchMatmulTransposeBOp
+  create(OpBuilder &builder, Location loc, TypeRange resultTensorTypes,
+         ValueRange inputs, ValueRange outputs, Attribute cast,
+         ArrayRef<NamedAttribute> attributes = {});
+  static BatchMatmulTransposeBOp
+  create(ImplicitLocOpBuilder &builder, TypeRange resultTensorTypes,
+         ValueRange inputs, ValueRange outputs, Attribute cast,
+         ArrayRef<NamedAttribute> attributes = {});
 
   /// Checks if the affine map is the expected one for this operation
   static bool isExpectedAffineMaps(Attribute attr);
