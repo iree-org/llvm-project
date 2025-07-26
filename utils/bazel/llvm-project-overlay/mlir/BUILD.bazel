@@ -10989,6 +10989,7 @@ cc_library(
         ":VectorTransforms",
         ":X86VectorDialect",
         ":X86VectorTransforms",
+        "//llvm:Core",
         "//llvm:Support",
     ],
 )
