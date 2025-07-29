@@ -1005,39 +1005,26 @@ struct ReorderElementwiseOpsOnBroadcast final
           "might be a scalar");
     }
 
-    // Get the type of the first non-constant operand
-    Operation *firstBroadcastOrSplat = nullptr;
-    for (Value operand : op->getOperands()) {
-      Operation *definingOp = operand.getDefiningOp();
-      if (!definingOp)
-        return failure();
-      if (definingOp->hasTrait<OpTrait::ConstantLike>())
-        continue;
-      if (!isa<vector::BroadcastOp, vector::SplatOp>(*definingOp))
-        return failure();
-      firstBroadcastOrSplat = definingOp;
-      break;
-    }
-    if (!firstBroadcastOrSplat)
+    // Get the type of the lhs operand
+    auto *lhsBcastOrSplat = op->getOperand(0).getDefiningOp();
+    if (!lhsBcastOrSplat ||
+        !isa<vector::BroadcastOp, vector::SplatOp>(*lhsBcastOrSplat))
       return failure();
-    Type firstBroadcastOrSplatType =
-        firstBroadcastOrSplat->getOperand(0).getType();
+    auto lhsBcastOrSplatType = lhsBcastOrSplat->getOperand(0).getType();
 
     // Make sure that all operands are broadcast from identical types:
     //  * scalar (`vector.broadcast` + `vector.splat`), or
     //  * vector (`vector.broadcast`).
     // Otherwise the re-ordering wouldn't be safe.
-    if (!llvm::all_of(
-            op->getOperands(), [&firstBroadcastOrSplatType](Value val) {
-              if (auto bcastOp = val.getDefiningOp<vector::BroadcastOp>())
-                return (bcastOp.getOperand().getType() ==
-                        firstBroadcastOrSplatType);
-              if (auto splatOp = val.getDefiningOp<vector::SplatOp>())
-                return (splatOp.getOperand().getType() ==
-                        firstBroadcastOrSplatType);
-              SplatElementsAttr splatConst;
-              return matchPattern(val, m_Constant(&splatConst));
-            })) {
+    if (!llvm::all_of(op->getOperands(), [&lhsBcastOrSplatType](Value val) {
+          auto bcast = val.getDefiningOp<vector::BroadcastOp>();
+          if (bcast)
+            return (bcast.getOperand().getType() == lhsBcastOrSplatType);
+          auto splat = val.getDefiningOp<vector::SplatOp>();
+          if (splat)
+            return (splat.getOperand().getType() == lhsBcastOrSplatType);
+          return false;
+        })) {
       return failure();
     }
 
@@ -1045,28 +1032,13 @@ struct ReorderElementwiseOpsOnBroadcast final
     SmallVector<Value> srcValues;
     srcValues.reserve(op->getNumOperands());
     for (Value operand : op->getOperands()) {
-      SplatElementsAttr splatConst;
-      if (matchPattern(operand, m_Constant(&splatConst))) {
-        Attribute newConst;
-        if (auto shapedTy = dyn_cast<ShapedType>(firstBroadcastOrSplatType)) {
-          newConst = splatConst.resizeSplat(shapedTy);
-        } else {
-          newConst = splatConst.getSplatValue<Attribute>();
-        }
-        Operation *newConstOp =
-            operand.getDefiningOp()->getDialect()->materializeConstant(
-                rewriter, newConst, firstBroadcastOrSplatType,
-                operand.getLoc());
-        srcValues.push_back(newConstOp->getResult(0));
-      } else {
-        srcValues.push_back(operand.getDefiningOp()->getOperand(0));
-      }
+      srcValues.push_back(operand.getDefiningOp()->getOperand(0));
     }
 
     // Create the "elementwise" Op
     Operation *elementwiseOp =
         rewriter.create(op->getLoc(), op->getName().getIdentifier(), srcValues,
-                        firstBroadcastOrSplatType, op->getAttrs());
+                        lhsBcastOrSplatType, op->getAttrs());
 
     // Replace the original Op with the elementwise Op
     auto vectorType = op->getResultTypes()[0];
