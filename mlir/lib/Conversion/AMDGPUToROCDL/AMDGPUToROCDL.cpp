@@ -1328,12 +1328,13 @@ struct GatherToLDSOpLowering : public ConvertOpToLLVMPattern<GatherToLDSOp> {
     Value dstPtr =
         getStridedElementPtr(rewriter, loc, dstMemRefType, adaptor.getDst(),
                              (adaptor.getDstIndices()));
+    IntegerAttr aux = op.getAux() ? rewriter.getI32IntegerAttr(*op.getAux())
+                                  : rewriter.getI32IntegerAttr(0);
 
     rewriter.replaceOpWithNewOp<ROCDL::LoadToLDSOp>(
         op, srcPtr, dstPtr, rewriter.getI32IntegerAttr(loadWidth),
         /*offset=*/rewriter.getI32IntegerAttr(0),
-        /*aux=*/rewriter.getI32IntegerAttr(0), ArrayAttr{}, ArrayAttr{},
-        ArrayAttr{});
+        /*aux=*/aux, ArrayAttr{}, ArrayAttr{}, ArrayAttr{});
 
     return success();
   }

@@ -82,9 +82,9 @@ struct FoldMemRefOpsIntoGatherToLDSOp final : OpRewritePattern<GatherToLDSOp> {
       return failure();
     }
 
-    rewriter.replaceOpWithNewOp<GatherToLDSOp>(op, memrefSource, sourceIndices,
-                                               op.getDst(), op.getDstIndices(),
-                                               op.getTransferType());
+    rewriter.replaceOpWithNewOp<GatherToLDSOp>(
+        op, memrefSource, sourceIndices, op.getDst(), op.getDstIndices(),
+        op.getTransferType(), op.getAuxAttr());
 
     return success();
   }

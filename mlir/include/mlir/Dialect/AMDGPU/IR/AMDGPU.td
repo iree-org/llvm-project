@@ -892,7 +892,8 @@ def AMDGPU_GatherToLDSOp :
                    Variadic<Index>:$srcIndices,
                    Arg<AnyMemRef, "buffer to write to", [MemWrite]>:$dst,
                    Variadic<Index>:$dstIndices,
-                   TypeAttr:$transferType
+                   TypeAttr:$transferType,
+                   OptionalAttr<I32Attr>:$aux
                    )>,
     Results<(outs)> {
   let summary = "MLIR wrapper for CDNA Gather to LDS instructions";
