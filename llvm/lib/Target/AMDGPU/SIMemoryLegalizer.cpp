@@ -370,12 +370,6 @@ public:
                              bool IsCrossAddrSpaceOrdering,
                              Position Pos) const = 0;
 
-  /// Inserts any necessary instructions before the barrier start instruction
-  /// \p MI in order to support pairing of barriers and fences.
-  virtual bool insertBarrierStart(MachineBasicBlock::iterator &MI) const {
-    return false;
-  };
-
   /// Virtual destructor to allow derivations to be deleted.
   virtual ~SICacheControl() = default;
 };
@@ -564,8 +558,6 @@ public:
                      SIAtomicScope Scope,
                      SIAtomicAddrSpace AddrSpace,
                      Position Pos) const override;
-
-  bool insertBarrierStart(MachineBasicBlock::iterator &MI) const override;
 };
 
 class SIGfx11CacheControl : public SIGfx10CacheControl {
@@ -2192,21 +2184,6 @@ bool SIGfx10CacheControl::insertAcquire(MachineBasicBlock::iterator &MI,
   return Changed;
 }
 
-bool SIGfx10CacheControl::insertBarrierStart(
-    MachineBasicBlock::iterator &MI) const {
-  // We need to wait on vm_vsrc so barriers can pair with fences in GFX10+ CU
-  // mode. This is because a CU mode release fence does not emit any wait, which
-  // is fine when only dealing with vmem, but isn't sufficient in the presence
-  // of barriers which do not go through vmem.
-  if (!ST.isCuModeEnabled())
-    return false;
-
-  BuildMI(*MI->getParent(), MI, MI->getDebugLoc(),
-          TII->get(AMDGPU::S_WAITCNT_DEPCTR))
-      .addImm(AMDGPU::DepCtr::encodeFieldVmVsrc(0));
-  return true;
-}
-
 bool SIGfx11CacheControl::enableLoadCacheBypass(
     const MachineBasicBlock::iterator &MI, SIAtomicScope Scope,
     SIAtomicAddrSpace AddrSpace) const {
@@ -2901,8 +2878,7 @@ bool SIMemoryLegalizer::run(MachineFunction &MF) {
   bool Changed = false;
 
   SIMemOpAccess MOA(MMI.getObjFileInfo<AMDGPUMachineModuleInfo>());
-  const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
-  CC = SICacheControl::create(ST);
+  CC = SICacheControl::create(MF.getSubtarget<GCNSubtarget>());
 
   for (auto &MBB : MF) {
     for (auto MI = MBB.begin(); MI != MBB.end(); ++MI) {
@@ -2920,11 +2896,6 @@ bool SIMemoryLegalizer::run(MachineFunction &MF) {
 
         MI->eraseFromParent();
         MI = II->getIterator();
-      }
-
-      if (ST.getInstrInfo()->isBarrierStart(MI->getOpcode())) {
-        Changed |= CC->insertBarrierStart(MI);
-        continue;
       }
 
       if (!(MI->getDesc().TSFlags & SIInstrFlags::maybeAtomic))
