@@ -1914,7 +1914,6 @@ def FeatureISAVersion10_3_Generic: FeatureSet<
 
 def FeatureISAVersion11_Common : FeatureSet<
   [FeatureGFX11,
-   FeatureBackOffBarrier,
    FeatureLDSBankCount32,
    FeatureDLInsts,
    FeatureDot5Insts,
@@ -1998,7 +1997,6 @@ def FeatureISAVersion11_5_3 : FeatureSet<
 
 def FeatureISAVersion12 : FeatureSet<
   [FeatureGFX12,
-   FeatureBackOffBarrier,
    FeatureAddressableLocalMemorySize65536,
    FeatureLDSBankCount32,
    FeatureDLInsts,
