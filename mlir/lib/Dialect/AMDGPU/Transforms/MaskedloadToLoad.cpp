@@ -89,84 +89,10 @@ struct MaskedLoadLowering final : OpRewritePattern<vector::MaskedLoadOp> {
       return failure();
     }
 
-    // Check if this is either a full inbounds load or an empty, oob load. If
-    // so, take the fast path and don't generate an if condition, because we
-    // know doing the oob load is always safe.
-    if (succeeded(matchFullMask(rewriter, maskedOp.getMask()))) {
       Value load = createVectorLoadForMaskedLoad(rewriter, maskedOp.getLoc(),
                                                  maskedOp, /*passthru=*/true);
       rewriter.replaceOp(maskedOp, load);
       return success();
-    }
-
-    Location loc = maskedOp.getLoc();
-    Value src = maskedOp.getBase();
-
-    VectorType vectorType = maskedOp.getVectorType();
-    int64_t vectorSize = vectorType.getNumElements();
-    int64_t elementBitWidth = vectorType.getElementTypeBitWidth();
-    SmallVector<OpFoldResult> indices = maskedOp.getIndices();
-
-    auto stridedMetadata =
-        memref::ExtractStridedMetadataOp::create(rewriter, loc, src);
-    SmallVector<OpFoldResult> strides =
-        stridedMetadata.getConstifiedMixedStrides();
-    SmallVector<OpFoldResult> sizes = stridedMetadata.getConstifiedMixedSizes();
-    OpFoldResult offset = stridedMetadata.getConstifiedMixedOffset();
-    memref::LinearizedMemRefInfo linearizedInfo;
-    OpFoldResult linearizedIndices;
-    std::tie(linearizedInfo, linearizedIndices) =
-        memref::getLinearizedMemRefOffsetAndSize(rewriter, loc, elementBitWidth,
-                                                 elementBitWidth, offset, sizes,
-                                                 strides, indices);
-
-    // delta = bufferSize - linearizedOffset
-    Value vectorSizeOffset =
-        arith::ConstantIndexOp::create(rewriter, loc, vectorSize);
-    Value linearIndex =
-        getValueOrCreateConstantIndexOp(rewriter, loc, linearizedIndices);
-    Value totalSize = getValueOrCreateConstantIndexOp(
-        rewriter, loc, linearizedInfo.linearizedSize);
-    Value delta = arith::SubIOp::create(rewriter, loc, totalSize, linearIndex);
-
-    // 1) check if delta < vectorSize
-    Value isOutofBounds = arith::CmpIOp::create(
-        rewriter, loc, arith::CmpIPredicate::ult, delta, vectorSizeOffset);
-
-    // 2) check if (detla % elements_per_word != 0)
-    Value elementsPerWord = arith::ConstantIndexOp::create(
-        rewriter, loc, llvm::divideCeil(32, elementBitWidth));
-    Value isNotWordAligned = arith::CmpIOp::create(
-        rewriter, loc, arith::CmpIPredicate::ne,
-        arith::RemUIOp::create(rewriter, loc, delta, elementsPerWord),
-        arith::ConstantIndexOp::create(rewriter, loc, 0));
-
-    // We take the fallback of maskedload default lowering only it is both
-    // out-of-bounds and not word aligned. The fallback ensures correct results
-    // when loading at the boundary of the buffer since buffer load returns
-    // inconsistent zeros for the whole word when boundary is crossed.
-    Value ifCondition =
-        arith::AndIOp::create(rewriter, loc, isOutofBounds, isNotWordAligned);
-
-    auto thenBuilder = [&](OpBuilder &builder, Location loc) {
-      Operation *read = builder.clone(*maskedOp.getOperation());
-      read->setAttr(kMaskedloadNeedsMask, builder.getUnitAttr());
-      Value readResult = read->getResult(0);
-      scf::YieldOp::create(builder, loc, readResult);
-    };
-
-    auto elseBuilder = [&](OpBuilder &builder, Location loc) {
-      Value res = createVectorLoadForMaskedLoad(builder, loc, maskedOp,
-                                                /*passthru=*/true);
-      scf::YieldOp::create(rewriter, loc, res);
-    };
-
-    auto ifOp =
-        scf::IfOp::create(rewriter, loc, ifCondition, thenBuilder, elseBuilder);
-
-    rewriter.replaceOp(maskedOp, ifOp);
-
-    return success();
   }
 };
 
