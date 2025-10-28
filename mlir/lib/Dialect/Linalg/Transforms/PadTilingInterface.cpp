@@ -288,10 +288,6 @@ FailureOr<PadTilingInterfaceResult> linalg::rewriteAsPaddedOp(
     return failure();
   }
 
-  OpBuilder::InsertionGuard g(builder);
-  // Set IP after toPad because we also take the dims of toPad's output.
-  builder.setInsertionPointAfter(toPad);
-
   // 1. Get the loopUpperBounds from the TilingInterface.
   SmallVector<Range> iterationDomain = toPad.getIterationDomain(builder);
 
@@ -358,6 +354,7 @@ FailureOr<PadTilingInterfaceResult> linalg::rewriteAsPaddedOp(
   LLVM_DEBUG(DBGS() << "--cloned padded op: " << paddedOp << "\n");
 
   // Recover the slice out of the new static results.
+  builder.setInsertionPointAfter(paddedOp);
   SmallVector<Value> paddedSubtensorResults;
   paddedSubtensorResults.reserve(toPad->getNumResults());
   for (const auto &en : llvm::enumerate(paddedOp->getResults())) {
