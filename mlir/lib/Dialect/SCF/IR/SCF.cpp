@@ -1802,12 +1802,17 @@ struct ForallOpIterArgsFolder : public OpRewritePattern<ForallOp> {
     }
 
     // Step 3. Create a new scf.forall op with the new shared_outs' operands
-    //         fetched earlier
+    //         fetched earlier, preserving custom attributes from the old op
+    auto prunedAttrs = getPrunedAttributeList(
+        forallOp.getOperation(), ForallOp::getAttributeNames());
     auto newForallOp = scf::ForallOp::create(
         rewriter, forallOp.getLoc(), forallOp.getMixedLowerBound(),
         forallOp.getMixedUpperBound(), forallOp.getMixedStep(), newOuts,
         forallOp.getMapping(),
         /*bodyBuilderFn =*/[](OpBuilder &, Location, ValueRange) {});
+    for (auto attr : prunedAttrs) {
+      newForallOp->setAttr(attr.getName(), attr.getValue());
+    }
 
     // Step 4. Merge the block of the old scf.forall into the newly created
     //         scf.forall using the new set of arguments.
