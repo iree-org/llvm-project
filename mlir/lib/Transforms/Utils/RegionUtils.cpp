@@ -1145,7 +1145,8 @@ LogicalResult mlir::moveOperationDependencies(RewriterBase &rewriter,
 LogicalResult mlir::moveValueDefinitions(RewriterBase &rewriter,
                                          ValueRange values,
                                          Operation *insertionPoint,
-                                         DominanceInfo &dominance) {
+                                         DominanceInfo &dominance,
+                                         bool ignoreSideEffects) {
   // Remove the values that already dominate the insertion point.
   SmallVector<Value> prunedValues;
   for (auto value : values) {
@@ -1178,9 +1179,17 @@ LogicalResult mlir::moveValueDefinitions(RewriterBase &rewriter,
   // Since current support is to only move within a same basic block,
   // the slices dont need to look past block arguments.
   options.omitBlockArguments = true;
+  bool dependsOnSideEffectingOp = false;
   options.filter = [&](Operation *sliceBoundaryOp) {
-    return !dominance.properlyDominates(sliceBoundaryOp, insertionPoint);
+    bool mustMove =
+        !dominance.properlyDominates(sliceBoundaryOp, insertionPoint);
+    if (mustMove && !ignoreSideEffects && !isPure(sliceBoundaryOp)) {
+      dependsOnSideEffectingOp = true;
+    }
+    return mustMove;
   };
+  if (dependsOnSideEffectingOp)
+    return failure();
   llvm::SetVector<Operation *> slice;
   for (auto value : prunedValues) {
     LogicalResult result = getBackwardSlice(value, &slice, options);
@@ -1206,7 +1215,9 @@ LogicalResult mlir::moveValueDefinitions(RewriterBase &rewriter,
 
 LogicalResult mlir::moveValueDefinitions(RewriterBase &rewriter,
                                          ValueRange values,
-                                         Operation *insertionPoint) {
+                                         Operation *insertionPoint,
+                                         bool ignoreSideEffects) {
   DominanceInfo dominance(insertionPoint);
-  return moveValueDefinitions(rewriter, values, insertionPoint, dominance);
+  return moveValueDefinitions(rewriter, values, insertionPoint, dominance,
+                              ignoreSideEffects);
 }
