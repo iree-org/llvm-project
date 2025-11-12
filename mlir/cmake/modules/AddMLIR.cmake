@@ -376,10 +376,11 @@ function(add_mlir_library name)
     set_property(GLOBAL APPEND PROPERTY MLIR_LLVM_LINK_COMPONENTS ${ARG_LINK_COMPONENTS})
     set_property(GLOBAL APPEND PROPERTY MLIR_LLVM_LINK_COMPONENTS ${LLVM_LINK_COMPONENTS})
   endif ()
-  if(ARG_ENABLE_AGGREGATION AND NOT XCODE)
+  if(ARG_ENABLE_AGGREGATION AND NOT XCODE AND NOT WIN32)
     # Yes, because this library is added to an aggergate library such as
     # libMLIR-C.so which is links together all the object files.
     # For XCode, -force_load is used instead.
+    # For Windows, object libraries cause linker path corruption, so we avoid them.
     set(NEEDS_OBJECT_LIB ON)
   endif()
   if (NOT ARG_SHARED AND NOT ARG_EXCLUDE_FROM_LIBMLIR AND NOT XCODE AND NOT MSVC_IDE)
@@ -418,9 +419,11 @@ function(add_mlir_library name)
     set(AGGREGATE_OBJECTS)
     set(AGGREGATE_OBJECT_LIB)
     set(AGGREGATE_DEPS)
-    if(XCODE)
+    if(XCODE OR WIN32)
       # XCode has limited support for object libraries. Instead, add dep flags
       # that force the entire library to be embedded.
+      # Windows also has issues with object libraries (path corruption in response files).
+      # Both use -force_load flags (Windows will convert to /WHOLEARCHIVE later).
       list(APPEND AGGREGATE_DEPS "-force_load" "${name}")
     elseif(TARGET obj.${name})
       # FIXME: *.obj can also be added via target_link_libraries since CMake 3.12.
