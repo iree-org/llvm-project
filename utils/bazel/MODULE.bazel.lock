@@ -467,6 +467,7 @@
         "recordedRepoMappingEntries": []
       }
     },
+<<<<<<< HEAD
     "@@rules_apple+//apple:apple.bzl%provisioning_profile_repository_extension": {
       "general": {
         "bzlTransitiveDigest": "CUIdbxeGZ+GPvVqbCkw9HQeJLsqeG3I1pJQ+oyZr/D4=",
@@ -577,6 +578,8 @@
         ]
       }
     },
+=======
+>>>>>>> parent of 930066f6e4e4 ([bazel] Add explicit dep on protobuf (#168928))
     "@@rules_kotlin+//src/main/starlark/core/repositories:bzlmod_setup.bzl%rules_kotlin_extensions": {
       "general": {
         "bzlTransitiveDigest": "OlvsB0HsvxbR8ZN+J9Vf00X/+WVz/Y/5Xrq2LgcVfdo=",
@@ -681,6 +684,7 @@
           ]
         ]
       }
+<<<<<<< HEAD
     },
     "@@rules_swift+//swift:extensions.bzl%non_module_deps": {
       "general": {
@@ -840,6 +844,8 @@
           ]
         ]
       }
+=======
+>>>>>>> parent of 930066f6e4e4 ([bazel] Add explicit dep on protobuf (#168928))
     }
   }
 }
