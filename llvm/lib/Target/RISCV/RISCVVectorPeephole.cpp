@@ -73,7 +73,7 @@ private:
   bool isAllOnesMask(const MachineInstr *MaskDef) const;
   std::optional<unsigned> getConstant(const MachineOperand &VL) const;
   bool ensureDominates(const MachineOperand &Use, MachineInstr &Src) const;
-  Register lookThruCopies(Register Reg) const;
+  bool isKnownSameDefs(Register A, Register B) const;
 };
 
 } // namespace
@@ -387,18 +387,23 @@ bool RISCVVectorPeephole::convertAllOnesVMergeToVMv(MachineInstr &MI) const {
   return true;
 }
 
-// If \p Reg is defined by one or more COPYs of virtual registers, traverses
-// the chain and returns the root non-COPY source.
-Register RISCVVectorPeephole::lookThruCopies(Register Reg) const {
-  while (MachineInstr *Def = MRI->getUniqueVRegDef(Reg)) {
-    if (!Def->isFullCopy())
-      break;
-    Register Src = Def->getOperand(1).getReg();
-    if (!Src.isVirtual())
-      break;
-    Reg = Src;
-  }
-  return Reg;
+bool RISCVVectorPeephole::isKnownSameDefs(Register A, Register B) const {
+  if (A.isPhysical() || B.isPhysical())
+    return false;
+
+  auto LookThruVirtRegCopies = [this](Register Reg) {
+    while (MachineInstr *Def = MRI->getUniqueVRegDef(Reg)) {
+      if (!Def->isFullCopy())
+        break;
+      Register Src = Def->getOperand(1).getReg();
+      if (!Src.isVirtual())
+        break;
+      Reg = Src;
+    }
+    return Reg;
+  };
+
+  return LookThruVirtRegCopies(A) == LookThruVirtRegCopies(B);
 }
 
 /// If a PseudoVMERGE_VVM's true operand is a masked pseudo and both have the
@@ -423,11 +428,10 @@ bool RISCVVectorPeephole::convertSameMaskVMergeToVMv(MachineInstr &MI) {
   if (!TrueMaskedInfo || !hasSameEEW(MI, *True))
     return false;
 
-  Register TrueMaskReg = lookThruCopies(
-      True->getOperand(TrueMaskedInfo->MaskOpIdx + True->getNumExplicitDefs())
-          .getReg());
-  Register MIMaskReg = lookThruCopies(MI.getOperand(4).getReg());
-  if (!TrueMaskReg.isVirtual() || TrueMaskReg != MIMaskReg)
+  const MachineOperand &TrueMask =
+      True->getOperand(TrueMaskedInfo->MaskOpIdx + True->getNumExplicitDefs());
+  const MachineOperand &MIMask = MI.getOperand(4);
+  if (!isKnownSameDefs(TrueMask.getReg(), MIMask.getReg()))
     return false;
 
   // Masked off lanes past TrueVL will come from False, and converting to vmv
@@ -713,9 +717,9 @@ bool RISCVVectorPeephole::foldVMergeToMask(MachineInstr &MI) const {
   if (RISCV::getRVVMCOpcode(MI.getOpcode()) != RISCV::VMERGE_VVM)
     return false;
 
-  Register PassthruReg = lookThruCopies(MI.getOperand(1).getReg());
-  Register FalseReg = lookThruCopies(MI.getOperand(2).getReg());
-  Register TrueReg = lookThruCopies(MI.getOperand(3).getReg());
+  Register PassthruReg = MI.getOperand(1).getReg();
+  Register FalseReg = MI.getOperand(2).getReg();
+  Register TrueReg = MI.getOperand(3).getReg();
   if (!TrueReg.isVirtual() || !MRI->hasOneUse(TrueReg))
     return false;
   MachineInstr &True = *MRI->getUniqueVRegDef(TrueReg);
@@ -736,17 +740,16 @@ bool RISCVVectorPeephole::foldVMergeToMask(MachineInstr &MI) const {
 
   // We require that either passthru and false are the same, or that passthru
   // is undefined.
-  if (PassthruReg && !(PassthruReg.isVirtual() && PassthruReg == FalseReg))
+  if (PassthruReg && !isKnownSameDefs(PassthruReg, FalseReg))
     return false;
 
   std::optional<std::pair<unsigned, unsigned>> NeedsCommute;
 
   // If True has a passthru operand then it needs to be the same as vmerge's
   // False, since False will be used for the result's passthru operand.
-  Register TruePassthru =
-      lookThruCopies(True.getOperand(True.getNumExplicitDefs()).getReg());
+  Register TruePassthru = True.getOperand(True.getNumExplicitDefs()).getReg();
   if (RISCVII::isFirstDefTiedToFirstUse(True.getDesc()) && TruePassthru &&
-      !(TruePassthru.isVirtual() && TruePassthru == FalseReg)) {
+      !isKnownSameDefs(TruePassthru, FalseReg)) {
     // If True's passthru != False, check if it uses False in another operand
     // and try to commute it.
     int OtherIdx = True.findRegisterUseOperandIdx(FalseReg, TRI);
