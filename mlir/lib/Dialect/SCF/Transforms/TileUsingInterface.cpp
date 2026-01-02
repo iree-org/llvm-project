@@ -1325,6 +1325,17 @@ getUntiledProducerFromSliceSource(OpOperand *source,
     source = loop.getTiedLoopInit(iterArg);
     loopIt++;
   }
+
+  OpResult result = dyn_cast<OpResult>(source->get());
+  if (result) {
+    Operation *producer = result.getOwner();
+    Operation *innermostLoop = loops.back();
+    // If the producer is already inside the innermost loop (where the slice
+    // is), it has already been fused. Skip it to avoid infinite loops.
+    if (innermostLoop->isProperAncestor(producer))
+      return {OpResult(), std::nullopt};
+  }
+
   if (loopIt == loops.rend())
     destinationIterArg = source;
   return {dyn_cast<OpResult>(source->get()), destinationIterArg};
