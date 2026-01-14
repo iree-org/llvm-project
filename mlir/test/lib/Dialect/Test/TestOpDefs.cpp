@@ -745,7 +745,7 @@ void RegionIfOp::getSuccessorRegions(
         &getJoinRegion())
       regions.push_back(RegionSuccessor(&getJoinRegion(), getJoinArgs()));
     else
-      regions.push_back(RegionSuccessor::parent(getResults()));
+      regions.push_back(RegionSuccessor(getOperation(), getResults()));
     return;
   }
 
@@ -772,7 +772,7 @@ void AnyCondOp::getSuccessorRegions(RegionBranchPoint point,
   if (point.isParent())
     regions.emplace_back(&getRegion());
   else
-    regions.push_back(RegionSuccessor::parent(getResults()));
+    regions.emplace_back(getOperation(), getResults());
 }
 
 void AnyCondOp::getRegionInvocationBounds(
@@ -1242,7 +1242,7 @@ void LoopBlockOp::getSuccessorRegions(
   if (point.isParent())
     return;
 
-  regions.push_back(RegionSuccessor::parent(getOperation()->getResults()));
+  regions.emplace_back(getOperation(), getOperation()->getResults());
 }
 
 OperandRange LoopBlockOp::getEntrySuccessorOperands(RegionSuccessor successor) {
@@ -1348,7 +1348,7 @@ void TestStoreWithARegion::getSuccessorRegions(
   if (point.isParent())
     regions.emplace_back(&getBody(), getBody().front().getArguments());
   else
-    regions.push_back(RegionSuccessor::parent(getOperation()->getResults()));
+    regions.emplace_back(getOperation(), getOperation()->getResults());
 }
 
 //===----------------------------------------------------------------------===//
@@ -1362,7 +1362,7 @@ void TestStoreWithALoopRegion::getSuccessorRegions(
   // enter the body.
   regions.emplace_back(
       RegionSuccessor(&getBody(), getBody().front().getArguments()));
-  regions.push_back(RegionSuccessor::parent(getOperation()->getResults()));
+  regions.emplace_back(getOperation(), getOperation()->getResults());
 }
 
 //===----------------------------------------------------------------------===//
