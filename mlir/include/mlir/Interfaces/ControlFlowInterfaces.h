@@ -213,19 +213,19 @@ public:
       : successor(region), inputs(regionInputs) {
     assert(region && "Region must not be null");
   }
-
   /// Initialize a successor that branches back to/out of the parent operation.
   /// The target must be one of the recursive parent operations.
-  static RegionSuccessor parent(Operation::result_range results) {
-    return RegionSuccessor(results);
+  RegionSuccessor(Operation *successorOp, Operation::result_range results)
+      : successor(successorOp), inputs(ValueRange(results)) {
+    assert(successorOp && "Successor op must not be null");
   }
 
   /// Return the given region successor. Returns nullptr if the successor is the
   /// parent operation.
-  Region *getSuccessor() const { return successor; }
+  Region *getSuccessor() const { return dyn_cast<Region *>(successor); }
 
   /// Return true if the successor is the parent operation.
-  bool isParent() const { return successor == nullptr; }
+  bool isParent() const { return isa<Operation *>(successor); }
 
   /// Return the inputs to the successor that are remapped by the exit values of
   /// the current region.
@@ -240,11 +240,7 @@ public:
   }
 
 private:
-  /// Private constructor to encourage the use of `RegionSuccessor::parent`.
-  RegionSuccessor(Operation::result_range results)
-      : successor(nullptr), inputs(ValueRange(results)) {}
-
-  Region *successor = nullptr;
+  llvm::PointerUnion<Region *, Operation *> successor{nullptr};
   ValueRange inputs;
 };
 

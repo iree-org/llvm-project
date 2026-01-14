@@ -324,7 +324,7 @@ void cir::ConditionOp::getSuccessorRegions(
   // Parent is a loop: condition may branch to the body or to the parent op.
   if (auto loopOp = dyn_cast<LoopOpInterface>(getOperation()->getParentOp())) {
     regions.emplace_back(&loopOp.getBody(), loopOp.getBody().getArguments());
-    regions.push_back(RegionSuccessor::parent(loopOp->getResults()));
+    regions.emplace_back(getOperation(), loopOp->getResults());
   }
 
   // Parent is an await: condition may branch to resume or suspend regions.
@@ -1168,7 +1168,8 @@ void cir::IfOp::getSuccessorRegions(mlir::RegionBranchPoint point,
                                     SmallVectorImpl<RegionSuccessor> &regions) {
   // The `then` and the `else` region branch back to the parent operation.
   if (!point.isParent()) {
-    regions.push_back(RegionSuccessor::parent(getOperation()->getResults()));
+    regions.push_back(
+        RegionSuccessor(getOperation(), getOperation()->getResults()));
     return;
   }
 
@@ -1218,7 +1219,7 @@ void cir::ScopeOp::getSuccessorRegions(
     mlir::RegionBranchPoint point, SmallVectorImpl<RegionSuccessor> &regions) {
   // The only region always branch back to the parent operation.
   if (!point.isParent()) {
-    regions.push_back(RegionSuccessor::parent(getODSResults(0)));
+    regions.push_back(RegionSuccessor(getOperation(), getODSResults(0)));
     return;
   }
 
@@ -1383,7 +1384,8 @@ Block *cir::BrCondOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
 void cir::CaseOp::getSuccessorRegions(
     mlir::RegionBranchPoint point, SmallVectorImpl<RegionSuccessor> &regions) {
   if (!point.isParent()) {
-    regions.push_back(RegionSuccessor::parent(getOperation()->getResults()));
+    regions.push_back(
+        RegionSuccessor(getOperation(), getOperation()->getResults()));
     return;
   }
   regions.push_back(RegionSuccessor(&getCaseRegion()));
@@ -1409,7 +1411,8 @@ void cir::CaseOp::build(OpBuilder &builder, OperationState &result,
 void cir::SwitchOp::getSuccessorRegions(
     mlir::RegionBranchPoint point, SmallVectorImpl<RegionSuccessor> &region) {
   if (!point.isParent()) {
-    region.push_back(RegionSuccessor::parent(getOperation()->getResults()));
+    region.push_back(
+        RegionSuccessor(getOperation(), getOperation()->getResults()));
     return;
   }
 
@@ -1623,7 +1626,8 @@ void cir::GlobalOp::getSuccessorRegions(
     mlir::RegionBranchPoint point, SmallVectorImpl<RegionSuccessor> &regions) {
   // The `ctor` and `dtor` regions always branch back to the parent operation.
   if (!point.isParent()) {
-    regions.push_back(RegionSuccessor::parent(getOperation()->getResults()));
+    regions.push_back(
+        RegionSuccessor(getOperation(), getOperation()->getResults()));
     return;
   }
 
@@ -2308,7 +2312,7 @@ void cir::TernaryOp::getSuccessorRegions(
     mlir::RegionBranchPoint point, SmallVectorImpl<RegionSuccessor> &regions) {
   // The `true` and the `false` region branch back to the parent operation.
   if (!point.isParent()) {
-    regions.push_back(RegionSuccessor::parent(this->getODSResults(0)));
+    regions.push_back(RegionSuccessor(getOperation(), this->getODSResults(0)));
     return;
   }
 
@@ -2613,7 +2617,8 @@ void cir::AwaitOp::getSuccessorRegions(
   // If any index all the underlying regions branch back to the parent
   // operation.
   if (!point.isParent()) {
-    regions.push_back(RegionSuccessor::parent(getOperation()->getResults()));
+    regions.push_back(
+        RegionSuccessor(getOperation(), getOperation()->getResults()));
     return;
   }
 
@@ -3527,7 +3532,8 @@ void cir::TryOp::getSuccessorRegions(
     llvm::SmallVectorImpl<mlir::RegionSuccessor> &regions) {
   // The `try` and the `catchers` region branch back to the parent operation.
   if (!point.isParent()) {
-    regions.push_back(RegionSuccessor::parent(getOperation()->getResults()));
+    regions.push_back(
+        RegionSuccessor(getOperation(), getOperation()->getResults()));
     return;
   }
 

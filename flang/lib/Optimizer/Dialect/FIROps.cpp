@@ -4699,7 +4699,7 @@ void fir::IfOp::getSuccessorRegions(
     llvm::SmallVectorImpl<mlir::RegionSuccessor> &regions) {
   // The `then` and the `else` region branch back to the parent operation.
   if (!point.isParent()) {
-    regions.push_back(mlir::RegionSuccessor::parent(getResults()));
+    regions.push_back(mlir::RegionSuccessor(getOperation(), getResults()));
     return;
   }
 
@@ -4710,7 +4710,7 @@ void fir::IfOp::getSuccessorRegions(
   mlir::Region *elseRegion = &this->getElseRegion();
   if (elseRegion->empty())
     regions.push_back(
-        mlir::RegionSuccessor::parent(getOperation()->getResults()));
+        mlir::RegionSuccessor(getOperation(), getOperation()->getResults()));
   else
     regions.push_back(mlir::RegionSuccessor(elseRegion));
 }
@@ -4729,8 +4729,7 @@ void fir::IfOp::getEntrySuccessorRegions(
     if (!getElseRegion().empty())
       regions.emplace_back(&getElseRegion());
     else
-      regions.push_back(
-          mlir::RegionSuccessor::parent(getOperation()->getResults()));
+      regions.emplace_back(getOperation(), getOperation()->getResults());
   }
 }
 
