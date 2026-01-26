@@ -105,6 +105,9 @@ function(llvm_update_pch name)
     endif()
   endforeach()
 
+  # Check if target has DISABLE_PRECOMPILE_HEADERS property set
+  get_target_property(target_disable_pch ${name} DISABLE_PRECOMPILE_HEADERS)
+
   if(ARG_PRECOMPILE_HEADERS)
     message(DEBUG "Adding PCH ${ARG_PRECOMPILE_HEADERS} for ${name} (prio ${pch_priority})")
     target_precompile_headers(${name} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${ARG_PRECOMPILE_HEADERS}>)
@@ -113,7 +116,7 @@ function(llvm_update_pch name)
       math(EXPR pch_priority "${pch_priority} + 1")
       set_target_properties(${name} PROPERTIES LLVM_PCH_PRIORITY ${pch_priority})
     endif()
-  elseif(pch_reuse AND NOT ARG_DISABLE_PCH_REUSE)
+  elseif(pch_reuse AND NOT ARG_DISABLE_PCH_REUSE AND NOT target_disable_pch)
     message(DEBUG "Using PCH ${pch_reuse} for ${name} (prio ${pch_priority})")
     target_precompile_headers(${name} REUSE_FROM ${pch_reuse})
   else()
@@ -1092,6 +1095,8 @@ macro(add_llvm_executable name)
     "ENTITLEMENTS;BUNDLE_PATH"
     ""
     ${ARGN})
+  # Executables are built with -fPIE and may have different std flags, incompatible with library PCH
+  set(ARG_DISABLE_PCH_REUSE ON)
   generate_llvm_objects(${name} ${ARG_UNPARSED_ARGUMENTS})
   add_windows_version_resource_file(ALL_FILES ${ALL_FILES})
 
@@ -1573,7 +1578,8 @@ macro(llvm_add_tool project name)
 endmacro(llvm_add_tool project name)
 
 macro(add_llvm_tool name)
-  llvm_add_tool(LLVM ${ARGV})
+  # LLVM tools are executables built with -fPIE, incompatible with library PCH built with -fPIC
+  llvm_add_tool(LLVM ${ARGV} DISABLE_PCH_REUSE)
 endmacro()
 
 

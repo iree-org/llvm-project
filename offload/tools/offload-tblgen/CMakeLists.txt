@@ -20,6 +20,8 @@ add_tablegen(offload-tblgen OFFLOAD
   offload-tblgen.cpp
   PrintGen.cpp
   RecordTypes.hpp
+
+  DISABLE_PCH_REUSE  # Executable built with -fPIE incompatible with library PCH
   )
 
 # Make sure that C++ headers are available, if libcxx is built at the same

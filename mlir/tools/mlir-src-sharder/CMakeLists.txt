@@ -6,6 +6,8 @@ add_tablegen(mlir-src-sharder MLIR_SRC_SHARDER
 
   DEPENDS
   ${LIBS}
+
+  DISABLE_PCH_REUSE  # Executable built with -fPIE incompatible with library PCH
   )
 
 set_target_properties(mlir-src-sharder PROPERTIES FOLDER "MLIR/Tablegenning")

@@ -21,6 +21,8 @@ add_tablegen(llvm-min-tblgen LLVM_HEADERS
   $<TARGET_OBJECTS:obj.LLVMTableGenBasic>
 
   PARTIAL_SOURCES_INTENDED
+
+  DISABLE_PCH_REUSE  # Executable built with -fPIE incompatible with library PCH
   )
 
 set(LLVM_LINK_COMPONENTS
@@ -80,4 +82,6 @@ add_tablegen(llvm-tblgen LLVM
 
   DEPENDS
   intrinsics_gen # via llvm-min-tablegen
+
+  DISABLE_PCH_REUSE  # Executable built with -fPIE incompatible with library PCH
   )

@@ -13,6 +13,8 @@ if (NOT DEFINED LLDB_TABLEGEN_EXE)
       LLDBPropertyDefEmitter.cpp
       LLDBTableGen.cpp
       LLDBTableGenUtils.cpp
+
+      DISABLE_PCH_REUSE  # Executable built with -fPIE incompatible with library PCH
       )
   endif()
 endif()

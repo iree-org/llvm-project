@@ -19,6 +19,8 @@ add_tablegen(mlir-pdll MLIR_PDLL
 
   DEPENDS
   ${LIBS}
+
+  DISABLE_PCH_REUSE  # Executable built with -fPIE incompatible with library PCH
   )
 
 target_link_libraries(mlir-pdll PRIVATE ${LIBS})

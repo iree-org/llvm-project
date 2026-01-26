@@ -157,7 +157,8 @@ macro(add_clang_library name)
 endmacro(add_clang_library)
 
 macro(add_clang_executable name)
-  add_llvm_executable( ${name} ${ARGN} )
+  # Clang executables are built with -fPIE, incompatible with library PCH built with -fPIC
+  add_llvm_executable( ${name} ${ARGN} DISABLE_PCH_REUSE)
   set_clang_windows_version_resource_properties(${name})
   set_target_properties(${name} PROPERTIES XCODE_GENERATE_SCHEME ON)
 endmacro(add_clang_executable)

@@ -454,7 +454,8 @@ function(add_mlir_library name)
 endfunction(add_mlir_library)
 
 macro(add_mlir_tool name)
-  llvm_add_tool(MLIR ${ARGV})
+  # MLIR tools are executables built with -fPIE, incompatible with library PCH built with -fPIC
+  llvm_add_tool(MLIR ${ARGV} DISABLE_PCH_REUSE)
 endmacro()
 
 # Sets a variable with a transformed list of link libraries such individual
@@ -673,6 +674,12 @@ function(add_mlir_public_c_api_library name)
   set_target_properties(obj.${name}
     PROPERTIES
     CXX_VISIBILITY_PRESET hidden
+  )
+  # Disable PCH for CAPI libraries with hidden visibility to avoid incompatibility
+  # with LLVMSupport PCH which is built with default visibility
+  set_target_properties(obj.${name}
+    PROPERTIES
+    DISABLE_PRECOMPILE_HEADERS ON
   )
   target_compile_definitions(obj.${name}
     PRIVATE

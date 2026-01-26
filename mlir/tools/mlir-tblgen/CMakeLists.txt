@@ -35,6 +35,8 @@ add_tablegen(mlir-tblgen MLIR
   SPIRVUtilsGen.cpp
   TosaUtilsGen.cpp
   CppGenUtilities.cpp
+
+  DISABLE_PCH_REUSE  # Executable built with -fPIE incompatible with library PCH
   )
 
 target_link_libraries(mlir-tblgen

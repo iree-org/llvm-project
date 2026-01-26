@@ -26,6 +26,8 @@ add_tablegen(clang-tblgen CLANG
   RISCVVEmitter.cpp
   SveEmitter.cpp
   TableGen.cpp
+
+  DISABLE_PCH_REUSE  # Executable built with -fPIE incompatible with library PCH
   )
 
 target_link_libraries(clang-tblgen PRIVATE clangSupport_tablegen)

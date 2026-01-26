@@ -29,6 +29,11 @@ if (NOT BUILD_SHARED_LIBS AND NOT APPLE AND
   # Set default visibility to hidden, so we don't export all the Target classes
   # in libLLVM.so.
   set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+
+  # Disable PCH for targets with hidden visibility to avoid incompatibility
+  # with LLVMSupport PCH which is built with default visibility.
+  # Error: "default visibility for functions and variables [-fvisibility] differs in PCH file"
+  set(CMAKE_DISABLE_PRECOMPILE_HEADERS ON)
 endif()
 
 foreach(t ${LLVM_TARGETS_TO_BUILD})

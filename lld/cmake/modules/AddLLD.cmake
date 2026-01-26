@@ -32,7 +32,8 @@ macro(add_lld_library name)
 endmacro(add_lld_library)
 
 macro(add_lld_executable name)
-  add_llvm_executable(${name} ${ARGN})
+  # LLD executables are built with -fPIE, incompatible with library PCH built with -fPIC
+  add_llvm_executable(${name} ${ARGN} DISABLE_PCH_REUSE)
 endmacro(add_lld_executable)
 
 macro(add_lld_tool name)

@@ -7,6 +7,8 @@ add_tablegen(tblgen-to-irdl MLIR
   EXPORT MLIR
   tblgen-to-irdl.cpp
   OpDefinitionsGen.cpp
+
+  DISABLE_PCH_REUSE  # Executable built with -fPIE incompatible with library PCH
   )
 
 target_link_libraries(tblgen-to-irdl
