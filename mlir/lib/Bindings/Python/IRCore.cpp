@@ -19,7 +19,6 @@
 #include "mlir-c/IR.h"
 #include "mlir-c/Support.h"
 
-#include <array>
 #include <functional>
 #include <optional>
 #include <string>
@@ -433,20 +432,13 @@ void PyOpOperandIterator::bind(nb::module_ &m) {
 // PyThreadPool
 //------------------------------------------------------------------------------
 
-PyThreadPool::PyThreadPool() { threadPool = mlirLlvmThreadPoolCreate(); }
-
-PyThreadPool::~PyThreadPool() {
-  if (threadPool.ptr)
-    mlirLlvmThreadPoolDestroy(threadPool);
-}
-
-int PyThreadPool::getMaxConcurrency() const {
-  return mlirLlvmThreadPoolGetMaxConcurrency(threadPool);
+PyThreadPool::PyThreadPool() {
+  ownedThreadPool = std::make_unique<llvm::DefaultThreadPool>();
 }
 
 std::string PyThreadPool::_mlir_thread_pool_ptr() const {
   std::stringstream ss;
-  ss << threadPool.ptr;
+  ss << ownedThreadPool.get();
   return ss.str();
 }
 

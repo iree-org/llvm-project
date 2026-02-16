@@ -35,10 +35,6 @@ void mlirLlvmThreadPoolDestroy(MlirLlvmThreadPool threadPool) {
   delete unwrap(threadPool);
 }
 
-int mlirLlvmThreadPoolGetMaxConcurrency(MlirLlvmThreadPool threadPool) {
-  return unwrap(threadPool)->getMaxConcurrency();
-}
-
 //===----------------------------------------------------------------------===//
 // LLVM raw_fd_ostream API.
 //===----------------------------------------------------------------------===//
