@@ -185,8 +185,9 @@ std::optional<ArrayRef<T>> tryGetDenseResourceValues(ElementsAttr attr) {
       return std::nullopt;
 
     // Check that the data are in a valid form
+    bool isSplat = false;
     if (!DenseElementsAttr::isValidRawBuffer(attr.getShapedType(),
-                                             blob->getData())) {
+                                             blob->getData(), isSplat)) {
       return std::nullopt;
     }
 

@@ -262,7 +262,8 @@ struct ConstantCompositeOpPattern final
 
       // Check that the buffer meets the requirements to get converted to a
       // DenseElementsAttr
-      if (!DenseElementsAttr::isValidRawBuffer(srcType, ptr))
+      bool detectedSplat = false;
+      if (!DenseElementsAttr::isValidRawBuffer(srcType, ptr, detectedSplat))
         return constOp->emitError("resource is not a valid buffer");
 
       dstElementsAttr =

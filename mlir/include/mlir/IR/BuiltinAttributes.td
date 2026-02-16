@@ -408,7 +408,8 @@ def Builtin_DenseStringElementsAttr : Builtin_Attr<
   let builders = [
     AttrBuilderWithInferredContext<(ins "ShapedType":$type,
                                         "ArrayRef<StringRef>":$values), [{
-      return $_get(type.getContext(), type, values);
+      return $_get(type.getContext(), type, values,
+                   /* isSplat */(values.size() == 1));
     }]>,
   ];
   let extraClassDeclaration = [{
