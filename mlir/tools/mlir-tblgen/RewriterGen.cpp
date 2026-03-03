@@ -892,9 +892,15 @@ void PatternEmitter::emitAttributeMatch(DagNode tree, StringRef castedName,
   const auto &attr = namedAttr->attr;
 
   os << "{\n";
-  os.indent() << formatv(
-      "[[maybe_unused]] auto tblgen_attr = {0}.getProperties().{1}();\n",
-      castedName, op.getGetterName(namedAttr->name));
+  if (op.getDialect().usePropertiesForAttributes()) {
+    os.indent() << formatv(
+        "[[maybe_unused]] auto tblgen_attr = {0}.getProperties().{1}();\n",
+        castedName, op.getGetterName(namedAttr->name));
+  } else {
+    os.indent() << formatv("[[maybe_unused]] auto tblgen_attr = "
+                           "{0}->getAttrOfType<{1}>(\"{2}\");\n",
+                           castedName, attr.getStorageType(), namedAttr->name);
+  }
 
   // TODO: This should use getter method to avoid duplication.
   if (attr.hasDefaultValue()) {
@@ -1600,6 +1606,7 @@ std::string PatternEmitter::handleOpCreation(DagNode tree, int resultIndex,
   LLVM_DEBUG(llvm::dbgs() << '\n');
 
   Operator &resultOp = tree.getDialectOp(opMap);
+  bool useProperties = resultOp.getDialect().usePropertiesForAttributes();
   auto numOpArgs = resultOp.getNumArgs();
   auto numPatArgs = tree.getNumArgs();
 
@@ -1691,9 +1698,10 @@ std::string PatternEmitter::handleOpCreation(DagNode tree, int resultIndex,
     createAggregateLocalVarsForOpArgs(tree, childNodeNames, depth);
 
     // Then create the op.
-    os.scope("", "\n}\n").os << formatv(
-        "{0} = {1}::create(rewriter, {2}, tblgen_values, {3});", valuePackName,
-        resultOp.getQualCppClassName(), locToUse, "tblgen_props");
+    os.scope("", "\n}\n").os
+        << formatv("{0} = {1}::create(rewriter, {2}, tblgen_values, {3});",
+                   valuePackName, resultOp.getQualCppClassName(), locToUse,
+                   useProperties ? "tblgen_props" : "tblgen_attrs");
     return resultValue;
   }
 
@@ -1752,7 +1760,7 @@ std::string PatternEmitter::handleOpCreation(DagNode tree, int resultIndex,
   os << formatv("{0} = {1}::create(rewriter, {2}, tblgen_types, "
                 "tblgen_values, {3});\n",
                 valuePackName, resultOp.getQualCppClassName(), locToUse,
-                "tblgen_props");
+                useProperties ? "tblgen_props" : "tblgen_attrs");
   os.unindent() << "}\n";
   return resultValue;
 }
@@ -1866,15 +1874,26 @@ void PatternEmitter::createAggregateLocalVarsForOpArgs(
     DagNode node, const ChildNodeIndexNameMap &childNodeNames, int depth) {
   Operator &resultOp = node.getDialectOp(opMap);
 
+  bool useProperties = resultOp.getDialect().usePropertiesForAttributes();
   auto scope = os.scope();
   os << formatv("::llvm::SmallVector<::mlir::Value, 4> "
                 "tblgen_values; (void)tblgen_values;\n");
-  os << formatv("{0}::Properties tblgen_props; (void)tblgen_props;\n",
-                resultOp.getQualCppClassName());
+  if (useProperties) {
+    os << formatv("{0}::Properties tblgen_props; (void)tblgen_props;\n",
+                  resultOp.getQualCppClassName());
+  } else {
+    os << formatv("::llvm::SmallVector<::mlir::NamedAttribute, 4> "
+                  "tblgen_attrs; (void)tblgen_attrs;\n");
+  }
 
-  const char *setterCmd =
+  const char *setPropCmd =
       "tblgen_props.{0} = "
       "::llvm::dyn_cast_if_present<decltype(tblgen_props.{0})>({1});\n";
+  const char *addAttrCmd =
+      "if (auto tmpAttr = {1}) {\n"
+      "  tblgen_attrs.emplace_back(rewriter.getStringAttr(\"{0}\"), "
+      "tmpAttr);\n}\n";
+  const char *setterCmd = (useProperties) ? setPropCmd : addAttrCmd;
   const char *propSetterCmd = "tblgen_props.{0}({1});\n";
 
   int numVariadic = 0;
@@ -1973,10 +1992,18 @@ void PatternEmitter::createAggregateLocalVarsForOpArgs(
     const auto *sameVariadicSize =
         resultOp.getTrait("::mlir::OpTrait::SameVariadicOperandSize");
     if (!sameVariadicSize) {
-      const char *setSizes = R"(
+      if (useProperties) {
+        const char *setSizes = R"(
           tblgen_props.operandSegmentSizes = {{ {0} };
         )";
-      os.printReindented(formatv(setSizes, llvm::join(sizes, ", ")).str());
+        os.printReindented(formatv(setSizes, llvm::join(sizes, ", ")).str());
+      } else {
+        const char *setSizes = R"(
+          tblgen_attrs.emplace_back(rewriter.getStringAttr("operandSegmentSizes"),
+            rewriter.getDenseI32ArrayAttr({{ {0} }));
+            )";
+        os.printReindented(formatv(setSizes, llvm::join(sizes, ", ")).str());
+      }
     }
   }
 }

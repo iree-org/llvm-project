@@ -399,9 +399,8 @@ TEST(OpPropertiesTest, withoutPropertiesDiscardableAttrs) {
             "other_attr");
 
   EXPECT_EQ(op->getAttrs().size(), 2u);
-  EXPECT_EQ(op->getInherentAttr("inherent_attr"), std::nullopt);
-  EXPECT_NE(op->getDiscardableAttr("inherent_attr"), Attribute());
-  EXPECT_NE(op->getDiscardableAttr("other_attr"), Attribute());
+  EXPECT_TRUE(op->getInherentAttr("inherent_attr") != std::nullopt);
+  EXPECT_TRUE(op->getDiscardableAttr("other_attr") != Attribute());
 
   std::string output;
   llvm::raw_string_ostream os(output);
