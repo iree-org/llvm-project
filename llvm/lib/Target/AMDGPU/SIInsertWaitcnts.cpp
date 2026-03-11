@@ -1203,7 +1203,7 @@ void WaitcntBrackets::updateByEvent(WaitEventType E, MachineInstr &Inst) {
       setScoreByOperand(Op, T, CurrScore);
     }
     if (Inst.mayStore() &&
-        (TII->isDS(Inst) || Context->isNonAsyncLdsDmaWrite(Inst))) {
+        (TII->isDS(Inst) || SIInstrInfo::mayWriteLDSThroughDMA(Inst))) {
       // MUBUF and FLAT LDS DMA operations need a wait on vmcnt before LDS
       // written can be accessed. A load from LDS to VMEM does not need a wait.
       //
@@ -1247,14 +1247,12 @@ void WaitcntBrackets::updateByEvent(WaitEventType E, MachineInstr &Inst) {
         setVMemScore(LDSDMA_BEGIN + Slot, T, CurrScore);
     }
 
-    // FIXME: Not supported on GFX12 yet. Newer async operations use other
-    // counters too, so will need a map from instruction or event types to
-    // counter types.
-    if (Context->isAsyncLdsDmaWrite(Inst) && T == LOAD_CNT) {
-      assert(!SIInstrInfo::usesASYNC_CNT(Inst) &&
-             "unexpected GFX1250 instruction");
-      AsyncScore[T] = CurrScore;
-    }
+    // Async LDS DMA writes are tracked through the normal LDSDMA path above.
+    // We do not update AsyncScore here because the asyncmark/wait.asyncmark
+    // mechanism's mergeAsyncMarks() produces incorrect vmcnt values for 3+
+    // stage pipelines during loop backedge merging. Instead, we rely on the
+    // normal alias-based tracking to generate correct vmcnt waits via
+    // ds_read → buffer_load_to_lds dependencies.
 
     if (SIInstrInfo::isSBarrierSCCWrite(Inst.getOpcode())) {
       setRegScore(AMDGPU::SCC, T, CurrScore);
@@ -3166,9 +3164,10 @@ bool SIInsertWaitcnts::insertWaitcntInBlock(MachineFunction &MF,
       FlushFlags = isPreheaderToFlush(Block, ScoreBrackets);
 
     if (Inst.getOpcode() == AMDGPU::ASYNCMARK) {
-      // FIXME: Not supported on GFX12 yet. Will need a new feature when we do.
-      assert(ST->getGeneration() < AMDGPUSubtarget::GFX12);
-      ScoreBrackets.recordAsyncMark(Inst);
+      // Async LDS DMA is tracked through the normal LDSDMA path, so we don't
+      // record async marks. The pseudo is simply skipped. WAIT_ASYNCMARK is
+      // handled in applyPreexistingWaitcnt where determineAsyncWait() returns
+      // an empty wait (since AsyncMarks is always empty).
       continue;
     }
 

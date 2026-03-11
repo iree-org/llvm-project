@@ -11305,6 +11305,14 @@ bool SIInstrInfo::isGlobalMemoryObject(const MachineInstr *MI) const {
   if (isIGLP(*MI))
     return false;
 
+  // ASYNCMARK/WAIT_ASYNCMARK are pseudo-instructions consumed by
+  // SIInsertWaitcnts. They carry IntrHasSideEffects from their intrinsic
+  // definitions, but should not act as scheduling barriers — they don't
+  // access memory and their only purpose is to guide waitcnt insertion.
+  unsigned Opc = MI->getOpcode();
+  if (Opc == AMDGPU::ASYNCMARK || Opc == AMDGPU::WAIT_ASYNCMARK)
+    return false;
+
   return TargetInstrInfo::isGlobalMemoryObject(MI);
 }
 
