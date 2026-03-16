@@ -28,6 +28,10 @@ class EntityIdTable;
 class EntitySummary;
 class SummaryName;
 
+/// Call this from main() to prevent the linker from dead-stripping the
+/// JSONFormat library and its static registration objects.
+void initializeJSONFormat();
+
 class JSONFormat final : public SerializationFormat {
   using Array = llvm::json::Array;
   using Object = llvm::json::Object;

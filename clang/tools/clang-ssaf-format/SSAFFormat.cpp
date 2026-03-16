@@ -15,7 +15,6 @@
 #include "clang/ScalableStaticAnalysisFramework/Core/EntityLinker/TUSummaryEncoding.h"
 #include "clang/ScalableStaticAnalysisFramework/Core/Serialization/JSONFormat.h"
 #include "clang/ScalableStaticAnalysisFramework/Core/Serialization/SerializationFormatRegistry.h"
-#include "clang/ScalableStaticAnalysisFramework/SSAFForceLinker.h" // IWYU pragma: keep
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/CommandLine.h"
@@ -153,11 +152,14 @@ SerializationFormat *getFormatForExtension(llvm::StringRef Extension) {
     return It->second.get();
   }
 
-  if (!isFormatRegistered(Extension)) {
+  // SerializationFormats are uppercase while file extensions are lowercase.
+  std::string CapitalizedExtension = Extension.upper();
+
+  if (!isFormatRegistered(CapitalizedExtension)) {
     return nullptr;
   }
 
-  auto Format = makeFormat(Extension);
+  auto Format = makeFormat(CapitalizedExtension);
   SerializationFormat *Result = Format.get();
   assert(Result);
 
@@ -467,6 +469,8 @@ int main(int argc, const char **argv) {
   cl::ParseCommandLineOptions(argc, argv, "SSAF Format\n");
 
   loadPlugins();
+
+  initializeJSONFormat();
 
   if (ListFormats) {
     listFormats();
