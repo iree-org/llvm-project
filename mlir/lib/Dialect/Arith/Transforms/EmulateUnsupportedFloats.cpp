@@ -132,23 +132,25 @@ void EmulateUnsupportedFloatsPass::runOnOperation() {
   SmallVector<Type> sourceTypes;
   Type targetType;
 
-  FloatType parsedTargetType = arith::parseFloatType(ctx, targetTypeStr);
-  if (!parsedTargetType) {
+  std::optional<FloatType> maybeTargetType =
+      arith::parseFloatType(ctx, targetTypeStr);
+  if (!maybeTargetType) {
     emitError(UnknownLoc::get(ctx), "could not map target type '" +
                                         targetTypeStr +
                                         "' to a known floating-point type");
     return signalPassFailure();
   }
-  targetType = parsedTargetType;
+  targetType = *maybeTargetType;
   for (StringRef sourceTypeStr : sourceTypeStrs) {
-    FloatType sourceType = arith::parseFloatType(ctx, sourceTypeStr);
-    if (!sourceType) {
+    std::optional<FloatType> maybeSourceType =
+        arith::parseFloatType(ctx, sourceTypeStr);
+    if (!maybeSourceType) {
       emitError(UnknownLoc::get(ctx), "could not map source type '" +
                                           sourceTypeStr +
                                           "' to a known floating-point type");
       return signalPassFailure();
     }
-    sourceTypes.push_back(sourceType);
+    sourceTypes.push_back(*maybeSourceType);
   }
   if (sourceTypes.empty())
     (void)emitOptionalWarning(
