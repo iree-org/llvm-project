@@ -124,25 +124,28 @@ void ExtendToSupportedTypesPass::runOnOperation() {
   MLIRContext *ctx = &getContext();
 
   // Parse target type
-  FloatType targetType = arith::parseFloatType(ctx, targetTypeStr);
-  if (!targetType) {
+  std::optional<Type> maybeTargetType =
+      arith::parseFloatType(ctx, targetTypeStr);
+  if (!maybeTargetType.has_value()) {
     emitError(UnknownLoc::get(ctx), "could not map target type '" +
                                         targetTypeStr +
                                         "' to a known floating-point type");
     return signalPassFailure();
   }
+  Type targetType = maybeTargetType.value();
 
   // Parse source types
   llvm::SetVector<Type> sourceTypes;
   for (const auto &extraTypeStr : extraTypeStrs) {
-    FloatType extraType = arith::parseFloatType(ctx, extraTypeStr);
-    if (!extraType) {
+    std::optional<FloatType> maybeExtraType =
+        arith::parseFloatType(ctx, extraTypeStr);
+    if (!maybeExtraType.has_value()) {
       emitError(UnknownLoc::get(ctx), "could not map source type '" +
                                           extraTypeStr +
                                           "' to a known floating-point type");
       return signalPassFailure();
     }
-    sourceTypes.insert(extraType);
+    sourceTypes.insert(maybeExtraType.value());
   }
   // f64 and f32 are implicitly supported
   Builder b(ctx);

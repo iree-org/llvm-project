@@ -6,7 +6,6 @@ add_mlir_dialect_library(MLIRArithUtils
 
   LINK_LIBS PUBLIC
   MLIRArithDialect
-  MLIRAsmParser
   MLIRComplexDialect
   MLIRDialect
   MLIRDialectUtils
