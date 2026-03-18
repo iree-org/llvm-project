@@ -1348,15 +1348,6 @@ TestCrashingReturnOp::getMutableSuccessorOperands(RegionSuccessor successor) {
 }
 
 //===----------------------------------------------------------------------===//
-// TestReturnWithIgnoredValueOp
-//===----------------------------------------------------------------------===//
-
-MutableOperandRange TestReturnWithIgnoredValueOp::getMutableSuccessorOperands(
-    RegionSuccessor /*successor*/) {
-  return getValuesMutable();
-}
-
-//===----------------------------------------------------------------------===//
 // SwitchWithNoBreakOp
 //===----------------------------------------------------------------------===//
 
