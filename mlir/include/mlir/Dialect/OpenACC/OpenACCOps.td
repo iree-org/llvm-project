@@ -2354,8 +2354,7 @@ def OpenACC_DataOp
 def OpenACC_TerminatorOp
     : OpenACC_Op<"terminator", [Pure, Terminator,
                                 DeclareOpInterfaceMethods<
-                                    RegionBranchTerminatorOpInterface,
-                                    ["getMutableSuccessorOperands"]>]> {
+                                    RegionBranchTerminatorOpInterface>]> {
   let summary = "Generic terminator for OpenACC regions";
 
   let description = [{
