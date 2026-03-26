@@ -2821,7 +2821,7 @@ bool Compiler<Emitter>::VisitAbstractConditionalOperator(
   LabelTy LabelFalse = this->getLabel(); // Label for the false expr.
 
   if (IsBcpCall) {
-    if (!this->emitPushIgnoreDiags(E))
+    if (!this->emitStartSpeculation(E))
       return false;
   }
 
@@ -2853,7 +2853,7 @@ bool Compiler<Emitter>::VisitAbstractConditionalOperator(
   this->emitLabel(LabelEnd);
 
   if (IsBcpCall)
-    return this->emitPopIgnoreDiags(E);
+    return this->emitEndSpeculation(E);
   return true;
 }
 
@@ -5423,9 +5423,9 @@ bool Compiler<Emitter>::VisitBuiltinCallExpr(const CallExpr *E,
     LabelTy EndLabel = this->getLabel();
     if (!this->speculate(E, EndLabel))
       return false;
+    this->fallthrough(EndLabel);
     if (!this->emitEndSpeculation(E))
       return false;
-    this->fallthrough(EndLabel);
     if (DiscardResult)
       return this->emitPop(classifyPrim(E), E);
     return true;
