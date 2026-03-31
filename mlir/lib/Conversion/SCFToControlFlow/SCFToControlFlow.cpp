@@ -684,7 +684,7 @@ IndexSwitchLowering::matchAndRewrite(IndexSwitchOp op,
 
   // Convert the case regions.
   SmallVector<Block *> caseSuccessors;
-  SmallVector<APInt> caseValues;
+  SmallVector<int32_t> caseValues;
   caseSuccessors.reserve(op.getCases().size());
   caseValues.reserve(op.getCases().size());
   for (auto [region, value] : llvm::zip(op.getCaseRegions(), op.getCases())) {
@@ -692,7 +692,7 @@ IndexSwitchLowering::matchAndRewrite(IndexSwitchOp op,
     if (failed(block))
       return failure();
     caseSuccessors.push_back(*block);
-    caseValues.push_back(APInt(64, value));
+    caseValues.push_back(value);
   }
 
   // Convert the default region.
@@ -704,12 +704,13 @@ IndexSwitchLowering::matchAndRewrite(IndexSwitchOp op,
   rewriter.setInsertionPointToEnd(condBlock);
   SmallVector<ValueRange> caseOperands(caseSuccessors.size(), {});
 
-  // Cast switch index to i64 to avoid truncation for large case values.
+  // Cast switch index to integer case value.
   Value caseValue = arith::IndexCastOp::create(
-      rewriter, op.getLoc(), rewriter.getI64Type(), op.getArg());
+      rewriter, op.getLoc(), rewriter.getI32Type(), op.getArg());
 
   cf::SwitchOp::create(rewriter, op.getLoc(), caseValue, *defaultBlock,
-                       ValueRange(), caseValues, caseSuccessors, caseOperands);
+                       ValueRange(), rewriter.getDenseI32ArrayAttr(caseValues),
+                       caseSuccessors, caseOperands);
   rewriter.replaceOp(op, continueBlock->getArguments());
   return success();
 }
