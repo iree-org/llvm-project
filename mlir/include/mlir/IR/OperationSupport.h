@@ -63,33 +63,22 @@ template <typename ValueRangeT>
 class ValueTypeRange;
 
 //===----------------------------------------------------------------------===//
-// PropertyRef
+// OpaqueProperties
 //===----------------------------------------------------------------------===//
 
-/// Type-safe wrapper around a void* for passing properties, including the
-/// properties structs of operations, generically through APIs. Pairs data with
-/// a TypeID for assert-based type checking. Note that the type in the type ID
-/// is the **storage** type of the property, and that the default object has a
-/// null data pointer and a type ID equal to the type ID for `void`.
-class PropertyRef {
+/// Simple wrapper around a void* in order to express generically how to pass
+/// in op properties through APIs.
+class OpaqueProperties {
 public:
-  PropertyRef() = default;
-  PropertyRef(TypeID typeID, void *data) : typeID(typeID), data(data) {}
-  operator bool() const { return data != nullptr; }
+  OpaqueProperties(void *prop) : properties(prop) {}
+  operator bool() const { return properties != nullptr; }
   template <typename Dest>
   Dest as() const {
-    static_assert(std::is_pointer_v<Dest>,
-                  "PropertyRef::as<T>() requires T to be a pointer type");
-    assert((typeID ==
-            TypeID::get<std::remove_cv_t<std::remove_pointer_t<Dest>>>()) &&
-           "Property type mismatch: TypeID does not match requested type");
-    return static_cast<Dest>(data);
+    return static_cast<Dest>(const_cast<void *>(properties));
   }
-  TypeID getTypeID() const { return typeID; }
 
 private:
-  TypeID typeID;
-  void *data = nullptr;
+  void *properties;
 };
 
 //===----------------------------------------------------------------------===//
@@ -141,18 +130,18 @@ public:
     verifyInherentAttrs(OperationName opName, NamedAttrList &attributes,
                         function_ref<InFlightDiagnostic()> emitError) = 0;
     virtual int getOpPropertyByteSize() = 0;
-    virtual void initProperties(OperationName opName, PropertyRef storage,
-                                PropertyRef init) = 0;
-    virtual void deleteProperties(PropertyRef) = 0;
+    virtual void initProperties(OperationName opName, OpaqueProperties storage,
+                                OpaqueProperties init) = 0;
+    virtual void deleteProperties(OpaqueProperties) = 0;
     virtual void populateDefaultProperties(OperationName opName,
-                                           PropertyRef properties) = 0;
+                                           OpaqueProperties properties) = 0;
     virtual LogicalResult
-    setPropertiesFromAttr(OperationName, PropertyRef, Attribute,
+    setPropertiesFromAttr(OperationName, OpaqueProperties, Attribute,
                           function_ref<InFlightDiagnostic()> emitError) = 0;
     virtual Attribute getPropertiesAsAttr(Operation *) = 0;
-    virtual void copyProperties(PropertyRef, PropertyRef) = 0;
-    virtual bool compareProperties(PropertyRef, PropertyRef) = 0;
-    virtual llvm::hash_code hashProperties(PropertyRef) = 0;
+    virtual void copyProperties(OpaqueProperties, OpaqueProperties) = 0;
+    virtual bool compareProperties(OpaqueProperties, OpaqueProperties) = 0;
+    virtual llvm::hash_code hashProperties(OpaqueProperties) = 0;
   };
 
 public:
@@ -171,7 +160,6 @@ public:
     Dialect *getDialect() const { return dialect; }
     StringAttr getName() const { return name; }
     TypeID getTypeID() const { return typeID; }
-    TypeID getPropertiesTypeID() const { return propertiesTypeID; }
     ArrayRef<StringAttr> getAttributeNames() const { return attributeNames; }
 
   protected:
@@ -198,20 +186,13 @@ public:
     /// lookup/creation/etc., as opposed to raw strings.
     ArrayRef<StringAttr> attributeNames;
 
-    /// The TypeID of the Properties struct for this operation.
-    TypeID propertiesTypeID;
-
     friend class RegisteredOperationName;
   };
 
 protected:
   /// Default implementation for unregistered operations.
   struct UnregisteredOpModel : public Impl {
-    UnregisteredOpModel(StringAttr name, Dialect *dialect, TypeID typeID,
-                        detail::InterfaceMap interfaceMap)
-        : Impl(name, dialect, typeID, std::move(interfaceMap)) {
-      propertiesTypeID = TypeID::get<Attribute>();
-    }
+    using Impl::Impl;
     LogicalResult foldHook(Operation *, ArrayRef<Attribute>,
                            SmallVectorImpl<OpFoldResult> &) final;
     void getCanonicalizationPatterns(RewritePatternSet &, MLIRContext *) final;
@@ -230,18 +211,18 @@ protected:
     verifyInherentAttrs(OperationName opName, NamedAttrList &attributes,
                         function_ref<InFlightDiagnostic()> emitError) final;
     int getOpPropertyByteSize() final;
-    void initProperties(OperationName opName, PropertyRef storage,
-                        PropertyRef init) final;
-    void deleteProperties(PropertyRef) final;
+    void initProperties(OperationName opName, OpaqueProperties storage,
+                        OpaqueProperties init) final;
+    void deleteProperties(OpaqueProperties) final;
     void populateDefaultProperties(OperationName opName,
-                                   PropertyRef properties) final;
+                                   OpaqueProperties properties) final;
     LogicalResult
-    setPropertiesFromAttr(OperationName, PropertyRef, Attribute,
+    setPropertiesFromAttr(OperationName, OpaqueProperties, Attribute,
                           function_ref<InFlightDiagnostic()> emitError) final;
     Attribute getPropertiesAsAttr(Operation *) final;
-    void copyProperties(PropertyRef, PropertyRef) final;
-    bool compareProperties(PropertyRef, PropertyRef) final;
-    llvm::hash_code hashProperties(PropertyRef) final;
+    void copyProperties(OpaqueProperties, OpaqueProperties) final;
+    bool compareProperties(OpaqueProperties, OpaqueProperties) final;
+    llvm::hash_code hashProperties(OpaqueProperties) final;
   };
 
 public:
@@ -432,23 +413,18 @@ public:
     return getImpl()->getOpPropertyByteSize();
   }
 
-  /// Return the TypeID of the op properties.
-  TypeID getOpPropertiesTypeID() const {
-    return getImpl()->getPropertiesTypeID();
-  }
-
   /// This hooks destroy the op properties.
-  void destroyOpProperties(PropertyRef properties) const {
+  void destroyOpProperties(OpaqueProperties properties) const {
     getImpl()->deleteProperties(properties);
   }
 
   /// Initialize the op properties.
-  void initOpProperties(PropertyRef storage, PropertyRef init) const {
+  void initOpProperties(OpaqueProperties storage, OpaqueProperties init) const {
     getImpl()->initProperties(*this, storage, init);
   }
 
   /// Set the default values on the ODS attribute in the properties.
-  void populateDefaultProperties(PropertyRef properties) const {
+  void populateDefaultProperties(OpaqueProperties properties) const {
     getImpl()->populateDefaultProperties(*this, properties);
   }
 
@@ -459,21 +435,21 @@ public:
 
   /// Define the op properties from the provided Attribute.
   LogicalResult setOpPropertiesFromAttribute(
-      OperationName opName, PropertyRef properties, Attribute attr,
+      OperationName opName, OpaqueProperties properties, Attribute attr,
       function_ref<InFlightDiagnostic()> emitError) const {
     return getImpl()->setPropertiesFromAttr(opName, properties, attr,
                                             emitError);
   }
 
-  void copyOpProperties(PropertyRef lhs, PropertyRef rhs) const {
+  void copyOpProperties(OpaqueProperties lhs, OpaqueProperties rhs) const {
     return getImpl()->copyProperties(lhs, rhs);
   }
 
-  bool compareOpProperties(PropertyRef lhs, PropertyRef rhs) const {
+  bool compareOpProperties(OpaqueProperties lhs, OpaqueProperties rhs) const {
     return getImpl()->compareProperties(lhs, rhs);
   }
 
-  llvm::hash_code hashOpProperties(PropertyRef properties) const {
+  llvm::hash_code hashOpProperties(OpaqueProperties properties) const {
     return getImpl()->hashProperties(properties);
   }
 
@@ -552,13 +528,9 @@ public:
   /// to a concrete op implementation.
   template <typename ConcreteOp>
   struct Model : public Impl {
-    using Properties = std::remove_reference_t<
-        decltype(std::declval<ConcreteOp>().getProperties())>;
     Model(Dialect *dialect)
         : Impl(ConcreteOp::getOperationName(), dialect,
-               TypeID::get<ConcreteOp>(), ConcreteOp::getInterfaceMap()) {
-      propertiesTypeID = TypeID::get<Properties>();
-    }
+               TypeID::get<ConcreteOp>(), ConcreteOp::getInterfaceMap()) {}
     LogicalResult foldHook(Operation *op, ArrayRef<Attribute> attrs,
                            SmallVectorImpl<OpFoldResult> &results) final {
       return ConcreteOp::getFoldHookFn()(op, attrs, results);
@@ -587,6 +559,9 @@ public:
     }
 
     /// Implementation for "Properties"
+
+    using Properties = std::remove_reference_t<
+        decltype(std::declval<ConcreteOp>().getProperties())>;
 
     std::optional<Attribute> getInherentAttr(Operation *op,
                                              StringRef name) final {
@@ -631,8 +606,8 @@ public:
         return sizeof(Properties);
       return 0;
     }
-    void initProperties(OperationName opName, PropertyRef storage,
-                        PropertyRef init) final {
+    void initProperties(OperationName opName, OpaqueProperties storage,
+                        OpaqueProperties init) final {
       using Properties =
           typename ConcreteOp::template InferredProperties<ConcreteOp>;
       if (init)
@@ -643,18 +618,18 @@ public:
         ConcreteOp::populateDefaultProperties(opName,
                                               *storage.as<Properties *>());
     }
-    void deleteProperties(PropertyRef prop) final {
+    void deleteProperties(OpaqueProperties prop) final {
       prop.as<Properties *>()->~Properties();
     }
     void populateDefaultProperties(OperationName opName,
-                                   PropertyRef properties) final {
+                                   OpaqueProperties properties) final {
       if constexpr (hasProperties)
         ConcreteOp::populateDefaultProperties(opName,
                                               *properties.as<Properties *>());
     }
 
     LogicalResult
-    setPropertiesFromAttr(OperationName opName, PropertyRef properties,
+    setPropertiesFromAttr(OperationName opName, OpaqueProperties properties,
                           Attribute attr,
                           function_ref<InFlightDiagnostic()> emitError) final {
       if constexpr (hasProperties) {
@@ -672,15 +647,15 @@ public:
       }
       return {};
     }
-    bool compareProperties(PropertyRef lhs, PropertyRef rhs) final {
+    bool compareProperties(OpaqueProperties lhs, OpaqueProperties rhs) final {
       if constexpr (hasProperties)
         return *lhs.as<Properties *>() == *rhs.as<Properties *>();
       return true;
     }
-    void copyProperties(PropertyRef lhs, PropertyRef rhs) final {
+    void copyProperties(OpaqueProperties lhs, OpaqueProperties rhs) final {
       *lhs.as<Properties *>() = *rhs.as<Properties *>();
     }
-    llvm::hash_code hashProperties(PropertyRef prop) final {
+    llvm::hash_code hashProperties(OpaqueProperties prop) final {
       if constexpr (hasProperties)
         return ConcreteOp::computePropertiesHash(*prop.as<Properties *>());
 
@@ -984,9 +959,11 @@ struct OperationState {
   Attribute propertiesAttr;
 
 private:
-  PropertyRef properties;
-  llvm::function_ref<void(PropertyRef)> propertiesDeleter;
-  llvm::function_ref<void(PropertyRef, const PropertyRef)> propertiesSetter;
+  OpaqueProperties properties = nullptr;
+  TypeID propertiesId;
+  llvm::function_ref<void(OpaqueProperties)> propertiesDeleter;
+  llvm::function_ref<void(OpaqueProperties, const OpaqueProperties)>
+      propertiesSetter;
   friend class Operation;
 
 public:
@@ -1007,13 +984,13 @@ public:
   OperationState &operator=(const OperationState &other) = delete;
   ~OperationState();
 
-  /// Get (or create) the properties of the provided type to be set on the
+  /// Get (or create) a properties of the provided type to be set on the
   /// operation on creation.
   template <typename T>
   T &getOrAddProperties() {
     if (!properties) {
       T *p = new T{};
-      properties = PropertyRef(TypeID::get<T>(), p);
+      properties = p;
 #if defined(__clang__)
 #if __has_warning("-Wdangling-assignment-gsl")
 #pragma clang diagnostic push
@@ -1021,8 +998,11 @@ public:
 #pragma clang diagnostic ignored "-Wdangling-assignment-gsl"
 #endif
 #endif
-      propertiesDeleter = [](PropertyRef prop) { delete prop.as<const T *>(); };
-      propertiesSetter = [](PropertyRef newProp, const PropertyRef prop) {
+      propertiesDeleter = [](OpaqueProperties prop) {
+        delete prop.as<const T *>();
+      };
+      propertiesSetter = [](OpaqueProperties newProp,
+                            const OpaqueProperties prop) {
         *newProp.as<T *>() = *prop.as<const T *>();
       };
 #if defined(__clang__)
@@ -1030,12 +1010,12 @@ public:
 #pragma clang diagnostic pop
 #endif
 #endif
+      propertiesId = TypeID::get<T>();
     }
-    assert(properties.getTypeID() == TypeID::get<T>() &&
-           "Inconsistent properties");
+    assert(propertiesId == TypeID::get<T>() && "Inconsistent properties");
     return *properties.as<T *>();
   }
-  PropertyRef getRawProperties() { return properties; }
+  OpaqueProperties getRawProperties() { return properties; }
 
   // Set the properties defined on this OpState on the given operation,
   // optionally emit diagnostics on error through the provided diagnostic.
@@ -1046,13 +1026,13 @@ public:
   // Make `newProperties` the source of the properties that will be copied into
   // the operation. The memory referenced by `newProperties` must remain live
   // until after the `Operation` is created, at which time it may be
-  // deallocated. Calls to `getOrAddProperties<>()` will return references to
+  // deallocated. Calls to `getOrAddProperties<>() will return references to
   // this memory.
   template <typename T>
   void useProperties(T &newProperties) {
     assert(!properties &&
            "Can't provide a properties struct when one has been allocated");
-    properties = PropertyRef(TypeID::get<T>(), &newProperties);
+    properties = &newProperties;
 #if defined(__clang__)
 #if __has_warning("-Wdangling-assignment-gsl")
 #pragma clang diagnostic push
@@ -1060,8 +1040,9 @@ public:
 #pragma clang diagnostic ignored "-Wdangling-assignment-gsl"
 #endif
 #endif
-    propertiesDeleter = [](PropertyRef) {};
-    propertiesSetter = [](PropertyRef newProp, const PropertyRef prop) {
+    propertiesDeleter = [](OpaqueProperties) {};
+    propertiesSetter = [](OpaqueProperties newProp,
+                          const OpaqueProperties prop) {
       *newProp.as<T *>() = *prop.as<const T *>();
     };
 #if defined(__clang__)
@@ -1069,6 +1050,7 @@ public:
 #pragma clang diagnostic pop
 #endif
 #endif
+    propertiesId = TypeID::get<T>();
   }
 
   void addOperands(ValueRange newOperands);
