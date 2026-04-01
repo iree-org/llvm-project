@@ -902,20 +902,20 @@ LogicalResult OperationName::UnregisteredOpModel::verifyInherentAttrs(
 int OperationName::UnregisteredOpModel::getOpPropertyByteSize() {
   return sizeof(Attribute);
 }
-void OperationName::UnregisteredOpModel::initProperties(OperationName opName,
-                                                        PropertyRef storage,
-                                                        PropertyRef init) {
+void OperationName::UnregisteredOpModel::initProperties(
+    OperationName opName, OpaqueProperties storage, OpaqueProperties init) {
   new (storage.as<Attribute *>()) Attribute();
   if (init)
     *storage.as<Attribute *>() = *init.as<Attribute *>();
 }
-void OperationName::UnregisteredOpModel::deleteProperties(PropertyRef prop) {
+void OperationName::UnregisteredOpModel::deleteProperties(
+    OpaqueProperties prop) {
   prop.as<Attribute *>()->~Attribute();
 }
 void OperationName::UnregisteredOpModel::populateDefaultProperties(
-    OperationName opName, PropertyRef properties) {}
+    OperationName opName, OpaqueProperties properties) {}
 LogicalResult OperationName::UnregisteredOpModel::setPropertiesFromAttr(
-    OperationName opName, PropertyRef properties, Attribute attr,
+    OperationName opName, OpaqueProperties properties, Attribute attr,
     function_ref<InFlightDiagnostic()> emitError) {
   *properties.as<Attribute *>() = attr;
   return success();
@@ -924,16 +924,16 @@ Attribute
 OperationName::UnregisteredOpModel::getPropertiesAsAttr(Operation *op) {
   return *op->getPropertiesStorage().as<Attribute *>();
 }
-void OperationName::UnregisteredOpModel::copyProperties(PropertyRef lhs,
-                                                        PropertyRef rhs) {
+void OperationName::UnregisteredOpModel::copyProperties(OpaqueProperties lhs,
+                                                        OpaqueProperties rhs) {
   *lhs.as<Attribute *>() = *rhs.as<Attribute *>();
 }
-bool OperationName::UnregisteredOpModel::compareProperties(PropertyRef lhs,
-                                                           PropertyRef rhs) {
+bool OperationName::UnregisteredOpModel::compareProperties(
+    OpaqueProperties lhs, OpaqueProperties rhs) {
   return *lhs.as<Attribute *>() == *rhs.as<Attribute *>();
 }
 llvm::hash_code
-OperationName::UnregisteredOpModel::hashProperties(PropertyRef prop) {
+OperationName::UnregisteredOpModel::hashProperties(OpaqueProperties prop) {
   return llvm::hash_combine(*prop.as<Attribute *>());
 }
 
