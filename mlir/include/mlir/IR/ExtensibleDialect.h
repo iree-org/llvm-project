@@ -551,23 +551,25 @@ public:
     return success();
   }
   int getOpPropertyByteSize() final { return 0; }
-  void initProperties(OperationName opName, PropertyRef storage,
-                      PropertyRef init) final {}
-  void deleteProperties(PropertyRef prop) final {}
+  void initProperties(OperationName opName, OpaqueProperties storage,
+                      OpaqueProperties init) final {}
+  void deleteProperties(OpaqueProperties prop) final {}
   void populateDefaultProperties(OperationName opName,
-                                 PropertyRef properties) final {}
+                                 OpaqueProperties properties) final {}
 
   LogicalResult
-  setPropertiesFromAttr(OperationName opName, PropertyRef properties,
+  setPropertiesFromAttr(OperationName opName, OpaqueProperties properties,
                         Attribute attr,
                         function_ref<InFlightDiagnostic()> emitError) final {
     emitError() << "extensible Dialects don't support properties";
     return failure();
   }
   Attribute getPropertiesAsAttr(Operation *op) final { return {}; }
-  void copyProperties(PropertyRef lhs, PropertyRef rhs) final {}
-  bool compareProperties(PropertyRef, PropertyRef) final { return true; }
-  llvm::hash_code hashProperties(PropertyRef prop) final { return {}; }
+  void copyProperties(OpaqueProperties lhs, OpaqueProperties rhs) final {}
+  bool compareProperties(OpaqueProperties, OpaqueProperties) final {
+    return true;
+  }
+  llvm::hash_code hashProperties(OpaqueProperties prop) final { return {}; }
 
 private:
   DynamicOpDefinition(

@@ -935,7 +935,7 @@ class ExtractStridedMetadataOpReinterpretCastFolder
     SmallVector<Type> inferredReturnTypes;
     if (failed(extractStridedMetadataOp.inferReturnTypes(
             rewriter.getContext(), loc, {reinterpretCastOp.getSource()},
-            /*attributes=*/{}, /*properties=*/{}, /*regions=*/{},
+            /*attributes=*/{}, /*properties=*/nullptr, /*regions=*/{},
             inferredReturnTypes)))
       return rewriter.notifyMatchFailure(
           reinterpretCastOp, "reinterpret_cast source's type is incompatible");
