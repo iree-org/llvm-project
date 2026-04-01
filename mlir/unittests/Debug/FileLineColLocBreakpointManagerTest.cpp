@@ -24,7 +24,8 @@ static Operation *createOp(MLIRContext *context, Location loc,
                            unsigned int numRegions = 0) {
   context->allowUnregisteredDialects();
   return Operation::create(loc, OperationName(operationName, context), {}, {},
-                           NamedAttrList(), PropertyRef(), {}, numRegions);
+                           NamedAttrList(), OpaqueProperties(nullptr), {},
+                           numRegions);
 }
 
 namespace {
