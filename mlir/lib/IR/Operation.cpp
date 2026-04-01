@@ -50,8 +50,9 @@ Operation *Operation::create(const OperationState &state) {
 /// Create a new Operation with the specific fields.
 Operation *Operation::create(Location location, OperationName name,
                              TypeRange resultTypes, ValueRange operands,
-                             NamedAttrList &&attributes, PropertyRef properties,
-                             BlockRange successors, RegionRange regions) {
+                             NamedAttrList &&attributes,
+                             OpaqueProperties properties, BlockRange successors,
+                             RegionRange regions) {
   unsigned numRegions = regions.size();
   Operation *op =
       create(location, name, resultTypes, operands, std::move(attributes),
@@ -65,8 +66,9 @@ Operation *Operation::create(Location location, OperationName name,
 /// Create a new Operation with the specific fields.
 Operation *Operation::create(Location location, OperationName name,
                              TypeRange resultTypes, ValueRange operands,
-                             NamedAttrList &&attributes, PropertyRef properties,
-                             BlockRange successors, unsigned numRegions) {
+                             NamedAttrList &&attributes,
+                             OpaqueProperties properties, BlockRange successors,
+                             unsigned numRegions) {
   // Populate default attributes.
   name.populateDefaultAttrs(attributes);
 
@@ -79,8 +81,9 @@ Operation *Operation::create(Location location, OperationName name,
 /// unnecessarily uniquing a list of attributes.
 Operation *Operation::create(Location location, OperationName name,
                              TypeRange resultTypes, ValueRange operands,
-                             DictionaryAttr attributes, PropertyRef properties,
-                             BlockRange successors, unsigned numRegions) {
+                             DictionaryAttr attributes,
+                             OpaqueProperties properties, BlockRange successors,
+                             unsigned numRegions) {
   assert(llvm::all_of(resultTypes, [](Type t) { return t; }) &&
          "unexpected null result type");
 
@@ -143,7 +146,7 @@ Operation *Operation::create(Location location, OperationName name,
   for (unsigned i = 0; i != numSuccessors; ++i)
     new (&blockOperands[i]) BlockOperand(op, successors[i]);
 
-  // This must be done after properties are initialized.
+  // This must be done after properties are initalized.
   op->setAttrs(attributes);
 
   return op;
@@ -152,7 +155,7 @@ Operation *Operation::create(Location location, OperationName name,
 Operation::Operation(Location location, OperationName name, unsigned numResults,
                      unsigned numSuccessors, unsigned numRegions,
                      int fullPropertiesStorageSize, DictionaryAttr attributes,
-                     PropertyRef properties, bool hasOperandStorage)
+                     OpaqueProperties properties, bool hasOperandStorage)
     : location(location), numResults(numResults), numSuccs(numSuccessors),
       numRegions(numRegions), hasOperandStorage(hasOperandStorage),
       propertiesStorageSize((fullPropertiesStorageSize + 7) / 8), name(name) {
@@ -360,7 +363,7 @@ LogicalResult Operation::setPropertiesFromAttribute(
       this->getName(), this->getPropertiesStorage(), attr, emitError);
 }
 
-void Operation::copyProperties(PropertyRef rhs) {
+void Operation::copyProperties(OpaqueProperties rhs) {
   name.copyOpProperties(getPropertiesStorage(), rhs);
 }
 
