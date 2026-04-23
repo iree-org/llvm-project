@@ -3934,7 +3934,6 @@ public:
   /// Static shapes only (no masking).
   FailureOr<Operation *> depthwiseConvViaTranspose(const Conv1DPerms &perms,
                                                    bool flatten) {
-    // Canonical sizes: kernel is [kw, c], result is [n, w, c].
     int64_t kwSize = 0, cSize = 0, nSize = 0, wSize = 0;
     {
       DenseMap<unsigned, unsigned> loopToRhs =
@@ -3950,12 +3949,24 @@ public:
     }
     int64_t iwSize =
         ((wSize - 1) * strideW + 1) + ((kwSize - 1) * dilationW + 1) - 1;
+    bool batchless = config.layout == ConvLayoutKind::Batchless;
 
-    Conv1DShapes canon{
-        /*lhs=*/{nSize, iwSize, cSize},
-        /*rhs=*/{kwSize, cSize},
-        /*res=*/{nSize, wSize, cSize},
-    };
+    // Build canonical shapes matching the actual tensor rank so that
+    // computeReadShapes can apply the permutations without a rank mismatch.
+    Conv1DShapes canon;
+    if (batchless) {
+      canon = Conv1DShapes{
+          /*lhs=*/{iwSize, cSize},
+          /*rhs=*/{kwSize, cSize},
+          /*res=*/{wSize, cSize},
+      };
+    } else {
+      canon = Conv1DShapes{
+          /*lhs=*/{nSize, iwSize, cSize},
+          /*rhs=*/{kwSize, cSize},
+          /*res=*/{nSize, wSize, cSize},
+      };
+    }
     Conv1DShapes read = computeReadShapes(canon, perms);
 
     Value zero = arith::ConstantIndexOp::create(rewriter, loc, 0);
@@ -3983,11 +3994,35 @@ public:
     if (!perms.res.empty())
       res = vector::TransposeOp::create(rewriter, loc, res, perms.res);
 
+    // depthwise1DKernel expects 3D lhs/res vectors [n, w, c]. For batchless
+    // ops the vectors are 2D [w, c], so expand with a unit N=1 dim before the
+    // kernel and collapse it back afterwards.
+    if (batchless) {
+      auto expandDim0 = [&](Value v) -> Value {
+        auto vTy = cast<VectorType>(v.getType());
+        SmallVector<int64_t> shape3D = {1};
+        llvm::append_range(shape3D, vTy.getShape());
+        return vector::ShapeCastOp::create(
+            rewriter, loc, VectorType::get(shape3D, vTy.getElementType()), v);
+      };
+      lhs = expandDim0(lhs);
+      res = expandDim0(res);
+    }
+
     int64_t wSizeStep = strideW == 1 ? wSize : 1;
     FailureOr<Value> kernelRes = depthwise1DKernel(
-        lhs, rhs, res, nSize, wSize, cSize, kwSize, wSizeStep, flatten);
+        lhs, rhs, res, /*nSize=*/1, wSize, cSize, kwSize, wSizeStep, flatten);
     if (failed(kernelRes))
       return failure();
+
+    if (batchless) {
+      auto vTy = cast<VectorType>(kernelRes->getType());
+      SmallVector<int64_t> shape2D(vTy.getShape().begin() + 1,
+                                   vTy.getShape().end());
+      *kernelRes = vector::ShapeCastOp::create(
+          rewriter, loc, VectorType::get(shape2D, vTy.getElementType()),
+          *kernelRes);
+    }
 
     return writeAndPostTranspose(*kernelRes, read.res, perms.res);
   }
