@@ -238,6 +238,54 @@ func.func @memref_subview_dynamic_offset_i4(%idx : index) -> i4 {
 
 // -----
 
+func.func @memref_subview_dynamic_inner_offset_i4(%off: index) -> i4 {
+  %c0 = arith.constant 0 : index
+  %arr = memref.alloc() : memref<128xi4>
+  %subview = memref.subview %arr[%off] [32] [1] : memref<128xi4> to memref<32xi4, strided<[1], offset: ?>>
+  %ld = memref.load %subview[%c0] : memref<32xi4, strided<[1], offset: ?>>
+  return %ld : i4
+}
+
+// CHECK-LABEL:   func.func @memref_subview_dynamic_inner_offset_i4(
+// CHECK-SAME:        %[[OFF:[a-zA-Z0-9_]+]]: index
+// CHECK:           %[[ALLOC:.+]] = memref.alloc() : memref<64xi8>
+// CHECK:           %[[IDX:.+]] = affine.apply {{.*}}%[[OFF]]
+// CHECK:           %[[SUBVIEW:.+]] = memref.subview %[[ALLOC]][%[[IDX]]] [16] [1] : memref<64xi8> to memref<16xi8, strided<[1], offset: ?>>
+// CHECK:           memref.load %[[SUBVIEW]]
+
+// CHECK32-LABEL:   func.func @memref_subview_dynamic_inner_offset_i4(
+// CHECK32-SAME:        %[[OFF:[a-zA-Z0-9_]+]]: index
+// CHECK32:           %[[ALLOC:.+]] = memref.alloc() : memref<16xi32>
+// CHECK32:           %[[IDX:.+]] = affine.apply {{.*}}%[[OFF]]
+// CHECK32:           %[[SUBVIEW:.+]] = memref.subview %[[ALLOC]][%[[IDX]]] [4] [1] : memref<16xi32> to memref<4xi32, strided<[1], offset: ?>>
+// CHECK32:           memref.load %[[SUBVIEW]]
+
+// -----
+
+// Dynamic innermost offset that is provably aligned (multiple of
+// `dstBits / srcBits`). The offset comes from `affine.apply` so the affine
+// simplifier in `makeComposedFoldedAffineApply` composes `(s0 * 2) floordiv 2`
+// down to `s0`; the linearized offset becomes `%x` directly with no
+// `affine.apply` left in the IR.
+
+func.func @memref_subview_aligned_dynamic_inner_offset_i4(%x: index) -> i4 {
+  %c0 = arith.constant 0 : index
+  %off = affine.apply affine_map<()[s0] -> (s0 * 2)>()[%x]
+  %arr = memref.alloc() : memref<128xi4>
+  %subview = memref.subview %arr[%off] [32] [1] : memref<128xi4> to memref<32xi4, strided<[1], offset: ?>>
+  %ld = memref.load %subview[%c0] : memref<32xi4, strided<[1], offset: ?>>
+  return %ld : i4
+}
+
+// CHECK-LABEL:   func.func @memref_subview_aligned_dynamic_inner_offset_i4(
+// CHECK-SAME:        %[[X:[a-zA-Z0-9_]+]]: index
+// CHECK:           %[[ALLOC:.+]] = memref.alloc() : memref<64xi8>
+// CHECK-NOT:       affine.apply
+// CHECK:           %[[SUBVIEW:.+]] = memref.subview %[[ALLOC]][%[[X]]] [16] [1] : memref<64xi8> to memref<16xi8, strided<[1], offset: ?>>
+// CHECK:           memref.load %[[SUBVIEW]]
+
+// -----
+
 func.func @negative_memref_subview_non_contiguous(%idx : index) -> i4 {
   %c0 = arith.constant 0 : index
   %arr = memref.alloc() : memref<40x40xi4>

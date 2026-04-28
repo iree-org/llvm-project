@@ -543,12 +543,14 @@ struct ConvertMemRefSubview final : OpConversionPattern<memref::SubViewOp> {
     }
 
     auto sizes = subViewOp.getStaticSizes();
-    int64_t lastOffset = subViewOp.getStaticOffsets().back();
-    // Only support static sizes and offsets.
-    if (llvm::is_contained(sizes, ShapedType::kDynamic) ||
-        lastOffset == ShapedType::kDynamic) {
-      return rewriter.notifyMatchFailure(
-          subViewOp->getLoc(), "dynamic size or offset is not supported");
+    // Only support static sizes; the result memref type otherwise has no
+    // shape after linearization. A dynamic innermost offset is allowed under
+    // the contract that the value is a multiple of `dstBits / srcBits`; this
+    // matches `memref.assume_alignment`-style preconditions and is checked
+    // (when foldable) below via `LinearizedMemRefInfo::intraDataOffset`.
+    if (llvm::is_contained(sizes, ShapedType::kDynamic)) {
+      return rewriter.notifyMatchFailure(subViewOp->getLoc(),
+                                         "dynamic size is not supported");
     }
 
     // Transform the offsets, sizes and strides according to the emulation.
@@ -565,6 +567,17 @@ struct ConvertMemRefSubview final : OpConversionPattern<memref::SubViewOp> {
             subViewOp.getMixedSizes(), strides,
             getMixedValues(adaptor.getStaticOffsets(), adaptor.getOffsets(),
                            rewriter));
+
+    // The linearized index in src-element units must be a multiple of
+    // `dstBits / srcBits` for the result memref offset (in dst-element units)
+    // to be representable. If folding proves a non-zero remainder, bail; if
+    // it stays symbolic, defer to the dynamic-offset alignment contract.
+    if (auto cst = getConstantIntValue(linearizedInfo.intraDataOffset);
+        cst && *cst != 0) {
+      return rewriter.notifyMatchFailure(
+          subViewOp,
+          "subview offset is provably not a multiple of dstBits / srcBits");
+    }
 
     rewriter.replaceOpWithNewOp<memref::SubViewOp>(
         subViewOp, newTy, adaptor.getSource(), linearizedIndices,
