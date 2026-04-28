@@ -297,6 +297,65 @@ func.func @negative_memref_subview_non_contiguous(%idx : index) -> i4 {
 
 // -----
 
+// Rank-3 reinterpret_cast on a sub-byte (i4) memref with a static, aligned
+// offset. Minimized from the iree-org/iree#24292 repro: the original IR
+// reinterprets `memref<2x256x4x32xf4E2M1FN, ws>` to a rank-3 view with
+// strides [128, 32, 1] and offset 0; this test exercises the same shape on
+// `i4` (the canonical narrow type used elsewhere in this file).
+
+func.func @reinterpret_cast_memref_rank3_static_offset_i4(%arg0: memref<2x4x8xi4>) -> memref<4x4x8xi4, strided<[32, 8, 1]>> {
+  %r = memref.reinterpret_cast %arg0 to offset: [0], sizes: [4, 4, 8], strides: [32, 8, 1] : memref<2x4x8xi4> to memref<4x4x8xi4, strided<[32, 8, 1]>>
+  return %r : memref<4x4x8xi4, strided<[32, 8, 1]>>
+}
+
+// CHECK-LABEL:   func @reinterpret_cast_memref_rank3_static_offset_i4(
+// CHECK-SAME:        %[[ARG0:.+]]: memref<32xi8>
+// CHECK:           %[[R:.+]] = memref.reinterpret_cast %[[ARG0]] to offset: [0], sizes: [64], strides: [1] : memref<32xi8> to memref<64xi8>
+// CHECK:           return %[[R]]
+
+// CHECK32-LABEL:   func @reinterpret_cast_memref_rank3_static_offset_i4(
+// CHECK32-SAME:        %[[ARG0:.+]]: memref<8xi32>
+// CHECK32:           %[[R:.+]] = memref.reinterpret_cast %[[ARG0]] to offset: [0], sizes: [16], strides: [1] : memref<8xi32> to memref<16xi32>
+// CHECK32:           return %[[R]]
+
+// -----
+
+// Rank-3 reinterpret_cast with a dynamic offset. The dynamic value is
+// accepted under the alignment trust contract; the new offset is
+// `affine.apply (s0 floordiv 2)[%off]` for the i4 -> i8 case.
+
+func.func @reinterpret_cast_memref_rank3_dynamic_offset_i4(%arg0: memref<2x4x8xi4>, %off: index) -> memref<4x4x8xi4, strided<[32, 8, 1], offset: ?>> {
+  %r = memref.reinterpret_cast %arg0 to offset: [%off], sizes: [4, 4, 8], strides: [32, 8, 1] : memref<2x4x8xi4> to memref<4x4x8xi4, strided<[32, 8, 1], offset: ?>>
+  return %r : memref<4x4x8xi4, strided<[32, 8, 1], offset: ?>>
+}
+
+// CHECK-LABEL:   func @reinterpret_cast_memref_rank3_dynamic_offset_i4(
+// CHECK-SAME:        %[[ARG0:.+]]: memref<32xi8>,
+// CHECK-SAME:        %[[OFF:.+]]: index
+// CHECK:           %[[NEWOFF:.+]] = affine.apply {{.*}}%[[OFF]]
+// CHECK:           %[[R:.+]] = memref.reinterpret_cast %[[ARG0]] to offset: {{\[}}%[[NEWOFF]]{{\]}}, sizes: [64], strides: [1] : memref<32xi8> to memref<64xi8, strided<[1], offset: ?>>
+// CHECK:           return %[[R]]
+
+// CHECK32-LABEL:   func @reinterpret_cast_memref_rank3_dynamic_offset_i4(
+// CHECK32-SAME:        %[[ARG0:.+]]: memref<8xi32>,
+// CHECK32-SAME:        %[[OFF:.+]]: index
+// CHECK32:           %[[NEWOFF:.+]] = affine.apply {{.*}}%[[OFF]]
+// CHECK32:           %[[R:.+]] = memref.reinterpret_cast %[[ARG0]] to offset: {{\[}}%[[NEWOFF]]{{\]}}, sizes: [16], strides: [1] : memref<8xi32> to memref<16xi32, strided<[1], offset: ?>>
+// CHECK32:           return %[[R]]
+
+// -----
+
+// Provably-misaligned static offset (1 is not a multiple of i4 -> i8 ratio
+// of 2). The new fold-or-fail check bails and the op stays illegal.
+
+func.func @negative_reinterpret_cast_memref_misaligned_static_offset_i4(%arg0: memref<2x4x8xi4>) -> memref<4x4x8xi4, strided<[32, 8, 1], offset: 1>> {
+  // expected-error @+1 {{failed to legalize operation 'memref.reinterpret_cast' that was explicitly marked illegal}}
+  %r = memref.reinterpret_cast %arg0 to offset: [1], sizes: [4, 4, 8], strides: [32, 8, 1] : memref<2x4x8xi4> to memref<4x4x8xi4, strided<[32, 8, 1], offset: 1>>
+  return %r : memref<4x4x8xi4, strided<[32, 8, 1], offset: 1>>
+}
+
+// -----
+
 func.func @reinterpret_cast_memref_load_0D() -> i4 {
     %0 = memref.alloc() : memref<5xi4>
     %reinterpret_cast_0 = memref.reinterpret_cast %0 to offset: [0], sizes: [], strides: [] : memref<5xi4> to memref<i4>
