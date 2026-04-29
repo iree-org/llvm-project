@@ -82,8 +82,17 @@ bool isNotBranchOpInterfaceOrReturnLikeOp(Operation *op);
 /// block.
 ///
 /// The new pattern is registered at `benefit + 1` so it supersedes the default
-/// pattern when both are populated. Callers that want only the all-blocks
-/// behavior should populate this one without populating the default.
+/// pattern when both are populated. This guarantee assumes the default pattern
+/// is populated with the same `benefit` argument; callers populating both at
+/// different explicit benefits must order them themselves. Callers that want
+/// only the all-blocks behavior should populate this one without populating the
+/// default.
+///
+/// This template is explicitly instantiated only for `func::FuncOp`. Callers
+/// that need to register the pattern for another `FunctionOpInterface`
+/// implementor (e.g. `LLVM::LLVMFuncOp`, `gpu::GPUFuncOp`) must add an
+/// explicit instantiation in
+/// `mlir/lib/Dialect/Func/Transforms/FuncConversions.cpp`.
 template <typename FunctionOpType>
 void populateFunctionOpInterfaceAllBlocksTypeConversionPattern(
     RewritePatternSet &patterns, const TypeConverter &converter,

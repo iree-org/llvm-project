@@ -215,11 +215,10 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     const TypeConverter &converter = *this->getTypeConverter();
     auto &body = funcOp.getFunctionBody();
-    if (body.empty())
-      return failure();
-
-    if (failed(rewriter.convertRegionTypes(&body, converter)))
-      return failure();
+    if (!body.empty()) {
+      if (failed(rewriter.convertRegionTypes(&body, converter)))
+        return failure();
+    }
 
     FunctionType funcTy = funcOp.getFunctionType();
     SmallVector<Type> inputTypes, resultTypes;
@@ -227,10 +226,15 @@ public:
         failed(converter.convertTypes(funcTy.getResults(), resultTypes)))
       return failure();
 
-    rewriter.modifyOpInPlace(funcOp, [&] {
-      funcOp.setType(
-          FunctionType::get(funcOp.getContext(), inputTypes, resultTypes));
-    });
+    FunctionType newFuncTy =
+        FunctionType::get(funcOp.getContext(), inputTypes, resultTypes);
+    if (newFuncTy != funcTy) {
+      rewriter.modifyOpInPlace(funcOp, [&] { funcOp.setType(newFuncTy); });
+    } else if (body.empty()) {
+      // No body to convert and no function-type change: nothing to do.
+      // Return failure() so applyPartialConversion does not loop.
+      return failure();
+    }
     return success();
   }
 };
