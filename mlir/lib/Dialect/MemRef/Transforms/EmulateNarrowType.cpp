@@ -392,6 +392,33 @@ struct ConvertMemRefLoad final : OpConversionPattern<memref::LoadOp> {
 };
 
 //===----------------------------------------------------------------------===//
+// ConvertMemRefCast
+//===----------------------------------------------------------------------===//
+
+/// `memref.cast` between two narrow-typed memrefs forwards through the type
+/// converter to a cast between the converted byte-typed memrefs.
+struct ConvertMemRefCast final : OpConversionPattern<memref::CastOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(memref::CastOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Type newTy = getTypeConverter()->convertType(op.getType());
+    if (!newTy) {
+      return rewriter.notifyMatchFailure(
+          op->getLoc(),
+          llvm::formatv("failed to convert memref type: {0}", op.getType()));
+    }
+    // No conversion happened; let other patterns handle this.
+    if (newTy == op.getType())
+      return failure();
+
+    rewriter.replaceOpWithNewOp<memref::CastOp>(op, newTy, adaptor.getSource());
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // ConvertMemRefMemorySpaceCast
 //===----------------------------------------------------------------------===//
 
@@ -685,12 +712,13 @@ void memref::populateMemRefNarrowTypeEmulationPatterns(
 
   // Populate `memref.*` conversion patterns.
   patterns.add<ConvertMemRefAllocation<memref::AllocOp>,
-               ConvertMemRefAllocation<memref::AllocaOp>, ConvertMemRefCopy,
-               ConvertMemRefDealloc, ConvertMemRefCollapseShape,
-               ConvertMemRefExpandShape, ConvertMemRefLoad,
-               ConvertMemRefAssumeAlignment, ConvertMemRefMemorySpaceCast,
-               ConvertMemRefSubview, ConvertMemRefReinterpretCast>(
-      typeConverter, patterns.getContext());
+               ConvertMemRefAllocation<memref::AllocaOp>, ConvertMemRefCast,
+               ConvertMemRefCopy, ConvertMemRefDealloc,
+               ConvertMemRefCollapseShape, ConvertMemRefExpandShape,
+               ConvertMemRefLoad, ConvertMemRefAssumeAlignment,
+               ConvertMemRefMemorySpaceCast, ConvertMemRefSubview,
+               ConvertMemRefReinterpretCast>(typeConverter,
+                                             patterns.getContext());
   patterns.insert<ConvertMemrefStore>(typeConverter, patterns.getContext(),
                                       disableAtomicRMW);
   memref::populateResolveExtractStridedMetadataPatterns(patterns);
