@@ -11,7 +11,9 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Arith/Transforms/NarrowTypeEmulationConverter.h"
 #include "mlir/Dialect/Arith/Transforms/Passes.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/MemRef/Transforms/Transforms.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
@@ -24,6 +26,40 @@ using namespace mlir;
 
 namespace {
 
+/// When enableCFConversion is true we need to convert ALL block argument types
+/// in the function body (entry AND non-entry blocks). The default
+/// FunctionOpInterfaceSignatureConversion only converts the entry block.  This
+/// pattern replaces it (at higher benefit) by calling convertRegionTypes, which
+/// covers the full region.
+struct ConvertFuncOpAllBlocks : public OpConversionPattern<func::FuncOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(func::FuncOp funcOp, OpAdaptor /*adaptor*/,
+                                ConversionPatternRewriter &rewriter) const override {
+    const TypeConverter &converter = *getTypeConverter();
+    auto &body = funcOp.getFunctionBody();
+    if (body.empty())
+      return failure();
+
+    // Convert ALL block argument types in the region (entry + successors).
+    if (failed(rewriter.convertRegionTypes(&body, converter)))
+      return failure();
+
+    // Also update the function type to reflect the converted signature.
+    FunctionType funcTy = funcOp.getFunctionType();
+    SmallVector<Type> inputTypes, resultTypes;
+    if (failed(converter.convertTypes(funcTy.getInputs(), inputTypes)) ||
+        failed(converter.convertTypes(funcTy.getResults(), resultTypes)))
+      return failure();
+
+    rewriter.modifyOpInPlace(funcOp, [&] {
+      funcOp.setType(
+          FunctionType::get(funcOp.getContext(), inputTypes, resultTypes));
+    });
+    return success();
+  }
+};
+
 struct TestEmulateNarrowTypePass
     : public PassWrapper<TestEmulateNarrowTypePass,
                          OperationPass<func::FuncOp>> {
@@ -35,8 +71,9 @@ struct TestEmulateNarrowTypePass
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry
-        .insert<arith::ArithDialect, func::FuncDialect, memref::MemRefDialect,
-                vector::VectorDialect, affine::AffineDialect>();
+        .insert<arith::ArithDialect, cf::ControlFlowDialect, func::FuncDialect,
+                memref::MemRefDialect, vector::VectorDialect,
+                affine::AffineDialect>();
   }
   StringRef getArgument() const final { return "test-emulate-narrow-int"; }
   StringRef getDescription() const final {
@@ -96,6 +133,14 @@ struct TestEmulateNarrowTypePass
         arith::ArithDialect, vector::VectorDialect, memref::MemRefDialect,
         affine::AffineDialect>(opLegalCallback);
 
+    if (enableCFConversion) {
+      target.addDynamicallyLegalDialect<cf::ControlFlowDialect>(
+          [&typeConverter](Operation *op) {
+            return isLegalForBranchOpInterfaceTypeConversionPattern(
+                op, typeConverter);
+          });
+    }
+
     RewritePatternSet patterns(ctx);
 
     arith::populateArithNarrowTypeEmulationPatterns(typeConverter, patterns);
@@ -103,6 +148,15 @@ struct TestEmulateNarrowTypePass
                                                       disableAtomicRMW);
     vector::populateVectorNarrowTypeEmulationPatterns(
         typeConverter, patterns, disableAtomicRMW, assumeAligned);
+
+    if (enableCFConversion) {
+      populateBranchOpInterfaceTypeConversionPattern(patterns, typeConverter);
+      // Add a higher-priority func.func pattern that converts ALL block arg
+      // types (entry + non-entry) via convertRegionTypes, superseding the
+      // default FunctionOpInterfaceSignatureConversion (benefit=1).
+      patterns.add<ConvertFuncOpAllBlocks>(typeConverter, ctx,
+                                           /*benefit=*/PatternBenefit(2));
+    }
 
     if (failed(applyPartialConversion(op, target, std::move(patterns))))
       signalPassFailure();
@@ -132,6 +186,13 @@ struct TestEmulateNarrowTypePass
       *this, "assume-aligned",
       llvm::cl::desc("assume store offsets are aligned to container element "
                      "boundaries"),
+      llvm::cl::init(false)};
+
+  Option<bool> enableCFConversion{
+      *this, "enable-cf-conversion",
+      llvm::cl::desc("register populateBranchOpInterfaceTypeConversionPattern "
+                     "and mark cf dialect ops dynamically legal based on "
+                     "isLegalForBranchOpInterfaceTypeConversionPattern"),
       llvm::cl::init(false)};
 };
 
