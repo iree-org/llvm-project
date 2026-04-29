@@ -199,3 +199,52 @@ bool mlir::isNotBranchOpInterfaceOrReturnLikeOp(Operation *op) {
 
   return false;
 }
+
+namespace {
+/// Converts every block-arg type in a FunctionOpType's region (entry block
+/// plus all successor blocks) and rewrites the function type to match.
+template <typename FunctionOpType>
+class FunctionOpInterfaceAllBlocksSignatureConversion
+    : public OpConversionPattern<FunctionOpType> {
+public:
+  using OpConversionPattern<FunctionOpType>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(FunctionOpType funcOp,
+                  typename OpConversionPattern<FunctionOpType>::OpAdaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    const TypeConverter &converter = *this->getTypeConverter();
+    auto &body = funcOp.getFunctionBody();
+    if (body.empty())
+      return failure();
+
+    if (failed(rewriter.convertRegionTypes(&body, converter)))
+      return failure();
+
+    FunctionType funcTy = funcOp.getFunctionType();
+    SmallVector<Type> inputTypes, resultTypes;
+    if (failed(converter.convertTypes(funcTy.getInputs(), inputTypes)) ||
+        failed(converter.convertTypes(funcTy.getResults(), resultTypes)))
+      return failure();
+
+    rewriter.modifyOpInPlace(funcOp, [&] {
+      funcOp.setType(
+          FunctionType::get(funcOp.getContext(), inputTypes, resultTypes));
+    });
+    return success();
+  }
+};
+} // namespace
+
+template <typename FunctionOpType>
+void mlir::populateFunctionOpInterfaceAllBlocksTypeConversionPattern(
+    RewritePatternSet &patterns, const TypeConverter &converter,
+    PatternBenefit benefit) {
+  patterns.add<FunctionOpInterfaceAllBlocksSignatureConversion<FunctionOpType>>(
+      converter, patterns.getContext(),
+      PatternBenefit(benefit.getBenefit() + 1));
+}
+
+// Explicit instantiation for func::FuncOp.
+template void mlir::populateFunctionOpInterfaceAllBlocksTypeConversionPattern<
+    func::FuncOp>(RewritePatternSet &, const TypeConverter &, PatternBenefit);

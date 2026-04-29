@@ -26,40 +26,6 @@ using namespace mlir;
 
 namespace {
 
-/// When enableCFConversion is true we need to convert ALL block argument types
-/// in the function body (entry AND non-entry blocks). The default
-/// FunctionOpInterfaceSignatureConversion only converts the entry block.  This
-/// pattern replaces it (at higher benefit) by calling convertRegionTypes, which
-/// covers the full region.
-struct ConvertFuncOpAllBlocks : public OpConversionPattern<func::FuncOp> {
-  using OpConversionPattern::OpConversionPattern;
-
-  LogicalResult matchAndRewrite(func::FuncOp funcOp, OpAdaptor /*adaptor*/,
-                                ConversionPatternRewriter &rewriter) const override {
-    const TypeConverter &converter = *getTypeConverter();
-    auto &body = funcOp.getFunctionBody();
-    if (body.empty())
-      return failure();
-
-    // Convert ALL block argument types in the region (entry + successors).
-    if (failed(rewriter.convertRegionTypes(&body, converter)))
-      return failure();
-
-    // Also update the function type to reflect the converted signature.
-    FunctionType funcTy = funcOp.getFunctionType();
-    SmallVector<Type> inputTypes, resultTypes;
-    if (failed(converter.convertTypes(funcTy.getInputs(), inputTypes)) ||
-        failed(converter.convertTypes(funcTy.getResults(), resultTypes)))
-      return failure();
-
-    rewriter.modifyOpInPlace(funcOp, [&] {
-      funcOp.setType(
-          FunctionType::get(funcOp.getContext(), inputTypes, resultTypes));
-    });
-    return success();
-  }
-};
-
 struct TestEmulateNarrowTypePass
     : public PassWrapper<TestEmulateNarrowTypePass,
                          OperationPass<func::FuncOp>> {
@@ -151,11 +117,8 @@ struct TestEmulateNarrowTypePass
 
     if (enableCFConversion) {
       populateBranchOpInterfaceTypeConversionPattern(patterns, typeConverter);
-      // Add a higher-priority func.func pattern that converts ALL block arg
-      // types (entry + non-entry) via convertRegionTypes, superseding the
-      // default FunctionOpInterfaceSignatureConversion (benefit=1).
-      patterns.add<ConvertFuncOpAllBlocks>(typeConverter, ctx,
-                                           /*benefit=*/PatternBenefit(2));
+      populateFunctionOpInterfaceAllBlocksTypeConversionPattern<func::FuncOp>(
+          patterns, typeConverter);
     }
 
     if (failed(applyPartialConversion(op, target, std::move(patterns))))

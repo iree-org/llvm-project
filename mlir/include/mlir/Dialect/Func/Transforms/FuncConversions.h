@@ -72,6 +72,22 @@ bool isLegalForReturnOpTypeConversionPattern(Operation *op,
 /// `isLegalForBranchOpInterfaceTypeConversionPattern` and
 /// `isLegalForReturnOpTypeConversionPattern`.
 bool isNotBranchOpInterfaceOrReturnLikeOp(Operation *op);
+
+/// Add a pattern that converts every block-argument type in a FunctionOpType's
+/// region (entry block plus all successor blocks) by calling
+/// `rewriter.convertRegionTypes`. Use this when a partial conversion needs to
+/// type-convert block arguments reached via control flow (e.g. cf.br successor
+/// blocks), since the default
+/// `populateFunctionOpInterfaceTypeConversionPattern` only converts the entry
+/// block.
+///
+/// The new pattern is registered at `benefit + 1` so it supersedes the default
+/// pattern when both are populated. Callers that want only the all-blocks
+/// behavior should populate this one without populating the default.
+template <typename FunctionOpType>
+void populateFunctionOpInterfaceAllBlocksTypeConversionPattern(
+    RewritePatternSet &patterns, const TypeConverter &converter,
+    PatternBenefit benefit = 1);
 } // namespace mlir
 
 #endif // MLIR_DIALECT_FUNC_TRANSFORMS_FUNCCONVERSIONS_H_
