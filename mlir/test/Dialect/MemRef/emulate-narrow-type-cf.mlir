@@ -16,3 +16,22 @@ func.func @cf_br_block_arg_narrow_type(%arg: memref<8xi4>) -> memref<8xi4> {
 ^bb1(%a: memref<8xi4>):
   return %a : memref<8xi4>
 }
+
+// -----
+
+// Sub-byte memref with dynamic offset carried through cf.br block-arg,
+// then loaded via vector.load. After FunctionOpInterfaceAllBlocksSignatureConversion
+// converts the block-arg to i8, an unrealized_conversion_cast is inserted.
+// ConvertVectorLoad calls extract_strided_metadata on the original sub-byte
+// source (op.getBase()), which is illegal without ConvertExtractStridedMetadata.
+
+// CHECK-LABEL: func.func @cf_br_block_arg_vector_load_i4
+// CHECK:         vector.load {{.*}} : memref<{{[0-9]+}}xi8, strided<[1], offset: ?>>, vector<{{[0-9]+}}xi8>
+// CHECK-NOT:     memref<{{[0-9]+}}xi4>
+func.func @cf_br_block_arg_vector_load_i4(%arg: memref<8xi4, strided<[1], offset: ?>>) -> vector<8xi4> {
+  cf.br ^bb1(%arg : memref<8xi4, strided<[1], offset: ?>>)
+^bb1(%a: memref<8xi4, strided<[1], offset: ?>>):
+  %c0 = arith.constant 0 : index
+  %v = vector.load %a[%c0] : memref<8xi4, strided<[1], offset: ?>>, vector<8xi4>
+  return %v : vector<8xi4>
+}
