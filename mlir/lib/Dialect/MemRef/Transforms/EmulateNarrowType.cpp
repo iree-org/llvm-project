@@ -775,8 +775,10 @@ struct ConvertExtractStridedMetadata final
       emulatedOffset =
           arith::MulIOp::create(rewriter, loc, i8Meta.getOffset(), scaleCst);
     } else {
-      emulatedOffset = arith::ConstantIndexOp::create(
-          rewriter, loc, static_cast<int64_t>(srcStaticOffset) * scale);
+      // srcStaticOffset comes from the original sub-byte source type and is
+      // already in emulated-element units. No scaling needed.
+      emulatedOffset = arith::ConstantIndexOp::create(rewriter, loc,
+                                                      srcStaticOffset);
     }
 
     // Sizes from the original type (always static in our emulation patterns).

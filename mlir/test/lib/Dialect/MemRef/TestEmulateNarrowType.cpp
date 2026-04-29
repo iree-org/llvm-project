@@ -14,6 +14,7 @@
 #include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
+#include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/MemRef/Transforms/Transforms.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
@@ -101,7 +102,12 @@ struct TestEmulateNarrowTypePass
 
     if (enableCFConversion) {
       target.addDynamicallyLegalDialect<cf::ControlFlowDialect>(
-          [&typeConverter](Operation *op) {
+          [&typeConverter](Operation *op) -> bool {
+            // Only apply legality check to BranchOpInterface ops; other cf ops
+            // (e.g. cf.assert) have no successor-block-arg conversion concern
+            // and should remain legal.
+            if (!isa<BranchOpInterface>(op))
+              return true;
             return isLegalForBranchOpInterfaceTypeConversionPattern(
                 op, typeConverter);
           });
