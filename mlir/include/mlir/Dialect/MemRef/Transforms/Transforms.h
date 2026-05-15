@@ -18,6 +18,7 @@
 #include "llvm/ADT/STLFunctionalExtras.h"
 
 namespace mlir {
+class ConversionTarget;
 class OpBuilder;
 class RewritePatternSet;
 class RewriterBase;
@@ -103,6 +104,15 @@ void populateMemRefNarrowTypeEmulationPatterns(
 /// with ops over wider types.
 void populateMemRefNarrowTypeEmulationConversions(
     arith::NarrowTypeEmulationConverter &typeConverter);
+
+/// Register patterns + dynamic legality so that cf branch ops carrying
+/// memref values whose element type is being emulated have both their
+/// operand types and their successor block-argument types rewritten to the
+/// container element type. Thin wrapper over
+/// cf::populateCFStructuralTypeConversionsAndLegality.
+void populateMemRefNarrowTypeEmulationCFPatterns(
+    const arith::NarrowTypeEmulationConverter &typeConverter,
+    RewritePatternSet &patterns, ConversionTarget &target);
 
 /// Transformation to do multi-buffering/array expansion to remove dependencies
 /// on the temporary allocation between consecutive loop iterations.

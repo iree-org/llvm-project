@@ -20,6 +20,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Arith/Transforms/NarrowTypeEmulationConverter.h"
 #include "mlir/Dialect/Arith/Utils/Utils.h"
+#include "mlir/Dialect/ControlFlow/Transforms/StructuralTypeConversions.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/MemRef/Utils/MemRefUtils.h"
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
@@ -2338,4 +2339,11 @@ void vector::populateMemRefFlattenAndVectorNarrowTypeEmulationPatterns(
     RewritePatternSet &patterns) {
   memref::populateFlattenVectorOpsOnMemrefPatterns(patterns);
   vector::populateVectorNarrowTypeEmulationPatterns(typeConverter, patterns);
+}
+
+void vector::populateVectorNarrowTypeEmulationCFPatterns(
+    const arith::NarrowTypeEmulationConverter &typeConverter,
+    RewritePatternSet &patterns, ConversionTarget &target) {
+  cf::populateCFStructuralTypeConversionsAndLegality(typeConverter, patterns,
+                                                     target);
 }

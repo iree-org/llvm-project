@@ -404,6 +404,14 @@ void populateVectorNarrowTypeEmulationPatterns(
     RewritePatternSet &patterns, bool disableAtomicRMW = false,
     bool assumeAligned = false);
 
+/// Register patterns + dynamic legality so that cf branch ops carrying
+/// values whose type is being emulated have both their operand types and
+/// their successor block-argument types rewritten. Thin wrapper over
+/// cf::populateCFStructuralTypeConversionsAndLegality.
+void populateVectorNarrowTypeEmulationCFPatterns(
+    const arith::NarrowTypeEmulationConverter &typeConverter,
+    RewritePatternSet &patterns, ConversionTarget &target);
+
 /// Populates patterns for both MeMref flattening and Vector narrow type
 /// emulation.
 ///

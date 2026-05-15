@@ -29,6 +29,7 @@ add_mlir_dialect_library(MLIRMemRefTransforms
   MLIRAffineUtils
   MLIRArithDialect
   MLIRArithTransforms
+  MLIRControlFlowTransforms
   MLIRDialectUtils
   MLIRFuncDialect
   MLIRGPUDialect

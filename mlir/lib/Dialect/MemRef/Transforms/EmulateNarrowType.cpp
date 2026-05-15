@@ -12,6 +12,7 @@
 #include "mlir/Dialect/Arith/Transforms/NarrowTypeEmulationConverter.h"
 #include "mlir/Dialect/Arith/Transforms/Passes.h"
 #include "mlir/Dialect/Arith/Utils/Utils.h"
+#include "mlir/Dialect/ControlFlow/Transforms/StructuralTypeConversions.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/MemRef/Transforms/Transforms.h"
 #include "mlir/Dialect/MemRef/Utils/MemRefUtils.h"
@@ -812,4 +813,11 @@ void memref::populateMemRefNarrowTypeEmulationConversions(
         return MemRefType::get(getLinearizedShape(ty, width, loadStoreWidth),
                                newElemTy, layoutAttr, ty.getMemorySpace());
       });
+}
+
+void memref::populateMemRefNarrowTypeEmulationCFPatterns(
+    const arith::NarrowTypeEmulationConverter &typeConverter,
+    RewritePatternSet &patterns, ConversionTarget &target) {
+  cf::populateCFStructuralTypeConversionsAndLegality(typeConverter, patterns,
+                                                     target);
 }
