@@ -10094,6 +10094,7 @@ cc_library(
         ":MemRefTransformOps",
         ":NVGPUTransformOps",
         ":NVVMToLLVM",
+        ":OpenACCAllExtensions",
         ":OpenMPToLLVM",
         ":PtrToLLVM",
         ":ROCDLToLLVMIRTranslation",
@@ -10938,6 +10939,7 @@ cc_library(
         ":LoopLikeInterface",
         ":MemRefDialect",
         ":NVVMDialect",
+        ":OpenACCAllExtensions",
         ":OpenACCAnalysis",
         ":OpenACCDialect",
         ":OpenACCPassIncGen",
@@ -11140,6 +11142,21 @@ cc_library(
 )
 
 cc_library(
+    name = "OpenACCAllExtensions",
+    srcs = glob(["lib/Dialect/OpenACC/Extensions/*.cpp"]),
+    hdrs = glob(["include/mlir/Dialect/OpenACC/Extensions/*.h"]),
+    includes = ["include"],
+    deps = [
+        ":ArithDialect",
+        ":GPUDialect",
+        ":IR",
+        ":LLVMDialect",
+        ":MemRefDialect",
+        ":OpenACCDialect",
+    ],
+)
+
+cc_library(
     name = "OpenACCToSCF",
     srcs = glob([
         "lib/Conversion/OpenACCToSCF/*.cpp",
@@ -11152,6 +11169,7 @@ cc_library(
         ":ArithDialect",
         ":ConversionPassIncGen",
         ":IR",
+        ":OpenACCAllExtensions",
         ":OpenACCDialect",
         ":Pass",
         ":SCFDialect",
@@ -11183,6 +11201,7 @@ cc_library(
         ":LLVMDialect",
         ":MemRefDialect",
         ":MemRefToLLVM",
+        ":OpenACCAllExtensions",
         ":OpenACCAnalysis",
         ":OpenACCDialect",
         ":OpenACCUtils",
